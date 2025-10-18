@@ -1,0 +1,888 @@
+<!--
+  Калькулятор задержек колонок по координатам (3D)
+
+  В этой версии реализованы следующие доработки:
+
+  1.  Удален импорт конфигурации из файлов Soundvision (XML/XMLP/XMLC).  Вместо него
+      добавлен импорт из PDF‑файлов.  Для разбора PDF используется библиотека
+      PDF.js.  Она подключается через CDN (unpkg.com) — вы можете скачать
+      `pdf.js` и `pdf.worker.js` рядом с этим файлом для работы в полностью
+      оффлайн‑режиме.  Функция importPDF() открывает диалог выбора файла,
+      загружает PDF, извлекает текст, находит строки вида
+      `Source: ...` (имя колонки) и `Position (X; Y; Z, m): a; b; c` (координаты)
+      и добавляет эти колонки в список.
+
+  2.  В правой части добавлена панель предварительного просмотра расположения
+      колонок и точки выравнивания.  Это элемент <canvas>, который отображает
+      координатную плоскость (ось X горизонтальная, Y вертикальная) в масштабе
+      относительно существующих координат.  Квадратики обозначают колонки,
+      жирная красная точка обозначает референсную точку прослушивания.  Точку
+      можно перетаскивать мышью, при изменении координат соответствующие поля
+      X/Y в разделе «Точка выравнивания» обновляются.  Высота (Z) задается в
+      левом блоке и не влияет на отображение в 2D.
+
+  3.  В коде добавлены подробные комментарии для облегчения понимания логики
+      и модификации калькулятора.
+
+  4.  Логика расчета задержек основана на общих рекомендациях из
+      профессиональных статей по настройке акустических систем.  Задержка
+      рассчитывается как разница между временем прихода звука от эталонной
+      колонки (или самой поздней колонки) и временем прихода звука от каждой
+      колонки в целевой точке прослушивания.  При необходимости к задержкам
+      можно добавить глобальный сдвиг и округление.
+
+  5.  Чтобы приложение было максимально оффлайновым, все вычисления и
+      взаимодействие с пользователем происходят в браузере без серверной
+      составляющей.  Если вам нужно полностью оффлайновое решение, скачайте
+      файлы pdf.js и pdf.worker.js из CDN и поместите их рядом с данным
+      документом, заменив соответствующие ссылки в теге <script>.
+-->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Калькулятор задержек колонок (3D) с PDF‑импортом</title>
+  <style>
+    /*
+     * Общие переменные цветов: тёмный фон, светлый текст, акценты и т.д.
+     * Эти переменные можно менять для изменения цветовой темы.
+     */
+    :root {
+      --bg: #0b0f14;
+      --fg: #e9eef5;
+      --muted: #9fb0c3;
+      --card: #101722;
+      --accent: #7cc4ff;
+      --ok: #86efac;
+      --warn: #fde68a;
+      --bad: #fda4af;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    header {
+      padding: 20px;
+      background: linear-gradient(180deg, #0f172a 0%, #0b0f14 100%);
+      border-bottom: 1px solid #192232;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    main {
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    /* Сетка для адаптивного размещения карточек */
+    .row {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(12, 1fr);
+      align-items: start;
+    }
+    /* Карточка – контейнер с тёмным фоном и тенью */
+    .card {
+      background: var(--card);
+      border: 1px solid #1b2434;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #223047;
+      background: #0b1220;
+      color: var(--fg);
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,196,255,.2);
+    }
+    .btn {
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid #27405d;
+      background: #0b1220;
+      color: var(--fg);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .btn:hover {
+      border-color: var(--accent);
+    }
+    .btn-primary {
+      background: linear-gradient(180deg, #1f6fd1, #1352a3);
+      border-color: #1f6fd1;
+    }
+    .btn-danger {
+      background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+      border-color: #7f1d1d;
+    }
+    .btn-ghost {
+      background: transparent;
+      border-color: #213048;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #1c273b;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    th { text-align: right; color: var(--muted); font-weight: 600; }
+    td:first-child, th:first-child { text-align: left; }
+    tfoot td { border-top: 1px solid #223047; }
+    .pill {
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid #223047;
+      color:var(--muted);
+    }
+    .hint { font-size: 12px; color: var(--muted); }
+    .flex { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+    .nowrap { white-space: nowrap; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .right { text-align:right; }
+    .mt8{margin-top:8px;} .mt12{margin-top:12px;} .mt16{margin-top:16px;} .mt20{margin-top:20px;}
+    .mb0{margin-bottom:0;} .mb4{margin-bottom:4px;} .mb8{margin-bottom:8px;} .mb12{margin-bottom:12px;}
+    .grid-2 { display:grid; gap:12px; grid-template-columns: 1fr 1fr; }
+    .small { font-size: 12px; }
+    .tag { font-size: 11px; padding: 2px 6px; border-radius: 6px; border: 1px solid #2a3a56; color: var(--muted); }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .scroll { overflow:auto; }
+    /* Стили для канваса визуализации */
+    #canvasContainer {
+      position: relative;
+      width: 100%;
+      height: 300px;
+      border: 1px solid #223047;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #vizCanvas {
+      width: 100%;
+      height: 100%;
+      background: #0b1220;
+      display: block;
+    }
+    #canvasLabel {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    /* Стили для переключателей скрытия сторон */
+    .toggle-btn {
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid #27405d;
+      background: #0b1220;
+      color: var(--fg);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .toggle-btn.active {
+      background: #1f6fd1;
+      border-color: #1f6fd1;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Калькулятор задержек колонок по координатам (3D)</h1>
+    <div class="hint mt8">
+      Вводите координаты колонок и точки выравнивания (место в партере/FOH/целевой ряд).
+      Калькулятор посчитает расстояния, время прихода и необходимые задержки.<br>
+      <span class="pill">Оси координат</span> <span class="small">X: отрицательные — влево от центра сцены, положительные — вправо; Y: 0 у линии сцены, положительные — вглубь зала; Z: высота относительно пола (м).</span>
+    </div>
+  </header>
+  <main>
+    <div class="row">
+      <!-- Левая колонка: параметры окружения и ввод координат -->
+      <div class="card" style="grid-column: span 6;">
+        <div class="grid-2">
+          <div>
+            <label>Температура воздуха, °C</label>
+            <input id="temp" type="number" step="0.1" value="20" />
+          </div>
+          <div>
+            <label>Скорость звука, м/с (авто)</label>
+            <input id="speed" type="number" step="0.1" value="343.2" />
+            <div class="hint">Автоматически обновляется по температуре: c ≈ 331.3 + 0.606·T</div>
+          </div>
+        </div>
+        <div class="grid-2 mt12">
+          <div>
+            <label>Точка выравнивания (X, м)</label>
+            <input id="tx" type="number" step="0.01" value="0" />
+          </div>
+          <div>
+            <label>Точка выравнивания (Y, м)</label>
+            <input id="ty" type="number" step="0.01" value="20" />
+          </div>
+        </div>
+        <div class="grid-2 mt12">
+          <div>
+            <label>Точка выравнивания (Z, м)</label>
+            <input id="tz" type="number" step="0.01" value="1.5" />
+          </div>
+          <div>
+            <label>Округление задержек, мс</label>
+            <input id="roundMs" type="number" step="0.1" value="0.1" />
+          </div>
+        </div>
+        <div class="mt12">
+          <label class="flex"><input id="invertX" type="checkbox" style="width:auto;margin-right:8px;"> Инвертировать ось X (L‑Acoustics: +X слева, −X справа)</label>
+        </div>
+        <div class="mt12">
+          <div class="pill">Логика выравнивания</div>
+          <div class="hint mt8">
+            • По умолчанию: к <b>самому позднему приходу</b> в точке слушателя (только положительные задержки).<br>
+            • Если в списке есть <b>Main</b> только один — все выравниваются к нему.<br>
+            • Если есть <b>Main L</b> и <b>Main R</b> — системы с X&lt;0 выравниваются к Main L, с X&gt;0 — к Main R.
+          </div>
+        </div>
+        <div class="mt12">
+          <button class="btn btn-primary" onclick="recalc()">Пересчитать</button>
+          <button class="btn btn-ghost" onclick="addRow()">Добавить колонку</button>
+          <button class="btn btn-ghost" onclick="exportJSON()">Сохранить (.json)</button>
+          <button class="btn btn-ghost" onclick="importJSON()">Загрузить (.json)</button>
+          <button class="btn btn-ghost" onclick="importPDF()">Импорт из PDF</button>
+        </div>
+      </div>
+
+      <!-- Правая колонка: канвас визуализации и управляющие поля -->
+      <div class="card" style="grid-column: span 6;">
+        <div class="grid-2">
+          <div>
+            <label>Референсная колонка</label>
+            <select id="refSelect"></select>
+            <div class="hint">Обычно это основная система (Main PA/центр).</div>
+          </div>
+          <div>
+            <label>Смещение общей задержки, мс (добавить всем)</label>
+            <input id="globalOffset" type="number" step="0.1" value="0" />
+          </div>
+        </div>
+        <div class="mt12 hint">
+          Подсказка: Z — высота излучателя (м). Если работаете в 2D‑плане — оставляйте Z одинаковым.
+        </div>
+        <!-- Контейнер для канваса.  Здесь рисуется 2D‑проекция колонок и точки -->
+        <div id="canvasContainer" class="mt12">
+          <canvas id="vizCanvas"></canvas>
+          <div id="canvasLabel">Схема расположения (X–Y)</div>
+        </div>
+
+        <!-- Переключатели для скрытия левой или правой стороны акустических систем -->
+        <div class="mt12 flex">
+          <button id="toggleLeft" class="toggle-btn" onclick="toggleLeft()">Скрыть левую сторону</button>
+          <button id="toggleRight" class="toggle-btn" onclick="toggleRight()">Скрыть правую сторону</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt20 scroll">
+      <div class="flex mb8">
+        <span class="pill">Список колонок</span>
+        <span class="hint">Поля «Существ. задержка» — задержка, уже выставленная в процессоре/DSP (мс).</span>
+      </div>
+      <table id="spkTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Имя</th>
+            <th>X, м<br><span class="small hint">− влево, + вправо</span></th>
+            <th>Y, м<br><span class="small hint">0 у сцены, + вглубь зала</span></th>
+            <th>Z, м<br><span class="small hint">высота</span></th>
+            <th>Существ. задержка, мс</th>
+            <th class="nowrap">Расст., м</th>
+            <th class="nowrap">Время прих., мс</th>
+            <th class="nowrap">Δ к цели, мс</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="10" class="small">
+              <span class="tag">Формулы</span>
+              <span class="hint">Расстояние d = √((x−tx)² + (y−ty)² + (z−tz)²). Время прихода t = d/c + delayDSP. Целевая логика: один Main → t_Main; Main L/R → t_MainL для X&lt;0 и t_MainR для X&gt;0; иначе → max(t_i). Рекомендуемая задержка = max(0, (t_target − t_i)).</span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="mt12">
+        <button class="btn btn-primary" onclick="copyDelays()">Скопировать задержки</button>
+        <span id="copyStatus" class="hint"></span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Подключаем PDF.js из локальных файлов.  Для оффлайн‑режима
+       скачайте pdf.js и pdf.worker.js (например, с CDN), разместите их в этой
+       папке и укажите соответствующие пути ниже. -->
+  <script src="pdf.js"></script>
+  <script>
+    // Настраиваем путь к pdf.worker.js.  Здесь предполагается, что
+    // pdf.worker.js находится в той же директории, что и pdf.js.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.js';
+  </script>
+
+  <script>
+    // Элементы DOM, используемые в коде
+    const tempEl = document.getElementById('temp');
+    const speedEl = document.getElementById('speed');
+    const txEl = document.getElementById('tx');
+    const tyEl = document.getElementById('ty');
+    const tzEl = document.getElementById('tz');
+    const roundEl = document.getElementById('roundMs');
+    const tbody = document.getElementById('tbody');
+    const refSelect = document.getElementById('refSelect');
+    const globalOffsetEl = document.getElementById('globalOffset');
+    const invertXEl = document.getElementById('invertX');
+    const canvas = document.getElementById('vizCanvas');
+    const canvasContainer = document.getElementById('canvasContainer');
+
+    // Переменная vizRange хранит диапазоны координат для визуализации.
+    // Она вычисляется в render() исходя из видимых колонок и не меняется при
+    // перетаскивании красной точки. Это позволяет зафиксировать масштаб,
+    // чтобы при перемещении точки система не "скакала". Параметры:
+    //  minX, maxX — минимальный и максимальный X среди колонок;
+    //  maxY — максимальный Y (глубина зала) среди колонок;
+    //  margin — относительный запас (процент диапазона), применяемый при
+    //           вычислении масштаба (0.2 означает 20 % поля).
+    let vizRange = null;
+
+    // Начальный список колонок.  Каждая колонка — объект {name, x, y, z, dsp}
+    let speakers = [
+      { name: 'Main L', x: -3, y: 0, z: 6, dsp: 0 },
+      { name: 'Main R', x: 3, y: 0, z: 6, dsp: 0 },
+      { name: 'Delay L1', x: -10, y: 15, z: 4, dsp: 0 },
+      { name: 'Delay R1', x: 10, y: 15, z: 4, dsp: 0 }
+    ];
+
+    // Массив lastComputed запоминает последние рассчитанные задержки.  Используется в copyDelays().
+    let lastComputed = [];
+
+    // Флаги скрытия сторон. Если hideLeft = true, скрываем колонки с x<0. Если hideRight = true, скрываем колонки с x>0.
+    let hideLeft = false;
+    let hideRight = false;
+
+    // Функция автоматического пересчета скорости звука по температуре
+    function autoSpeed() {
+      const T = parseFloat(tempEl.value || '0');
+      const c = 331.3 + 0.606 * T;
+      speedEl.value = c.toFixed(1);
+    }
+    tempEl.addEventListener('input', autoSpeed);
+
+    // При изменении флага инверсии оси X пересчитываем диапазон и перерисовываем.
+    invertXEl.addEventListener('change', () => {
+      // Новая ориентация требует пересчёта vizRange, иначе масштаб останется прежним.
+      computeVizRange();
+      updateCanvas();
+    });
+
+    // Добавить новую колонку в список
+    function addRow() {
+      speakers.push({ name: `Колонка ${speakers.length+1}`, x: 0, y: 0, z: 0, dsp: 0 });
+      render();
+    }
+
+    // Удалить колонку по индексу
+    function removeRow(idx) {
+      speakers.splice(idx,1);
+      render();
+    }
+
+    // Основная функция визуализации таблицы и канваса
+    function render() {
+      // Получаем список отображаемых колонок с исходными индексами
+      const visible = speakers.map((s, idx) => ({ origIndex: idx, data: s }))
+        .filter(item => {
+          const xVal = item.data.x;
+          // скрываем в зависимости от флагов hideLeft/hideRight
+          if (hideLeft && xVal < 0) return false;
+          if (hideRight && xVal > 0) return false;
+          return true;
+        });
+      // Обновляем список в селекторе референсной колонки (только видимые)
+      refSelect.innerHTML = visible.map((item,j)=>`<option value="${item.origIndex}">${j+1}. ${escapeHtml(item.data.name)}</option>`).join('');
+      // Отрисовываем строки таблицы колонок для видимых
+      tbody.innerHTML = visible.map((item, j) => {
+        const s = item.data;
+        const orig = item.origIndex;
+        return `<tr>
+          <td>${j+1}</td>
+          <td><input type="text" value="${escapeAttr(s.name)}" data-i="${orig}" data-k="name" /></td>
+          <td><input type="number" step="0.01" value="${s.x}" data-i="${orig}" data-k="x" /></td>
+          <td><input type="number" step="0.01" value="${s.y}" data-i="${orig}" data-k="y" /></td>
+          <td><input type="number" step="0.01" value="${s.z}" data-i="${orig}" data-k="z" /></td>
+          <td><input type="number" step="0.01" value="${s.dsp}" data-i="${orig}" data-k="dsp" /></td>
+          <td id="d_v${j}">—</td>
+          <td id="t_v${j}">—</td>
+          <td id="r_v${j}">—</td>
+          <td class="right"><button class="btn btn-danger" onclick="removeRow(${orig})">Удалить</button></td>
+        </tr>`;
+      }).join('');
+      // Добавляем слушателей на все поля ввода — обновляют данные модели speakers
+      tbody.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const i = parseInt(inp.getAttribute('data-i'), 10);
+          const k = inp.getAttribute('data-k');
+          speakers[i][k] = (k === 'name') ? inp.value : parseFloat(inp.value || '0');
+          updateCanvas();
+          recalc();
+        });
+      });
+      // Пересчитываем задержки и рисуем канвас
+      // Сначала пересчитываем задержки
+      recalc();
+      // Перед рисованием пересчитываем диапазоны визуализации. Мы делаем это
+      // здесь (а не в updateCanvas), чтобы масштаб фиксировался при
+      // перетаскивании. Диапазон зависит только от колонок и флагов скрытия.
+      computeVizRange();
+      updateCanvas();
+    }
+
+    // Основная функция пересчета расстояний, времени и задержек
+    function recalc() {
+      const tx = parseFloat(txEl.value || '0');
+      const ty = parseFloat(tyEl.value || '0');
+      const tz = parseFloat(tzEl.value || '0');
+      const c = Math.max(1, parseFloat(speedEl.value || '343.2'));
+      const roundMs = Math.max(0, parseFloat(roundEl.value || '0.1'));
+      const globalOffset = parseFloat(globalOffsetEl.value || '0');
+      const invertX = !!(invertXEl && invertXEl.checked);
+      const txEff = invertX ? -tx : tx;
+
+      // Получаем список используемых колонок с учётом скрытия
+      const used = speakers.filter(s => {
+        if (hideLeft && s.x < 0) return false;
+        if (hideRight && s.x > 0) return false;
+        return true;
+      });
+      const d = [], t = [];
+      // Рассчитываем расстояние и время прихода только для видимых колонок
+      for (let i=0;i<used.length;i++) {
+        const s = used[i];
+        const sx = invertX ? -s.x : s.x;
+        const dist = Math.hypot(sx - txEff, s.y - ty, s.z - tz);
+        const timeMs = (dist / c) * 1000 + (s.dsp || 0);
+        d[i] = dist;
+        t[i] = timeMs;
+      }
+      // Определяем основные системы среди видимых
+      let idxMainL = -1, idxMainR = -1, idxMain = -1;
+      for (let i=0;i<used.length;i++){
+        const n = String(used[i].name).toLowerCase();
+        const isMain = /(^|\W)main(\W|$)/.test(n);
+        const isL = /(^|\W)(l|left)(\W|$)/.test(n);
+        const isR = /(^|\W)(r|right)(\W|$)/.test(n);
+        if (isMain && isL) idxMainL = i; else if (isMain && isR) idxMainR = i; else if (isMain) idxMain = i;
+      }
+      const latest = t.length ? Math.max(...t) : 0;
+      // Функция определения целевой колонки для выравнивания (для видимых)
+      function targetForSpeaker(i){
+        const sx = invertX ? -used[i].x : used[i].x;
+        if (idxMainL === -1 && idxMainR === -1 && idxMain === -1) return latest;
+        if (idxMain !== -1 && idxMainL === -1 && idxMainR === -1) return t[idxMain];
+        if (idxMainL !== -1 && idxMainR !== -1) {
+          if (sx < 0) return t[idxMainL];
+          if (sx > 0) return t[idxMainR];
+          const xL = invertX ? -used[idxMainL].x : used[idxMainL].x;
+          const xR = invertX ? -used[idxMainR].x : used[idxMainR].x;
+          const dxL = Math.abs(sx - xL);
+          const dxR = Math.abs(sx - xR);
+          return (dxL <= dxR) ? t[idxMainL] : t[idxMainR];
+        }
+        let candidates = [];
+        if (idxMain !== -1) candidates.push(idxMain);
+        if (idxMainL !== -1) candidates.push(idxMainL);
+        if (idxMainR !== -1) candidates.push(idxMainR);
+        const xi = sx;
+        candidates.sort((a,b)=>{ const xa = invertX ? -used[a].x : used[a].x; const xb = invertX ? -used[b].x : used[b].x; return Math.abs(xi - xa) - Math.abs(xi - xb); });
+        return t[candidates[0]];
+      }
+      // Вычисляем задержки
+      const delays = used.map((_, i) => {
+        const tgt = targetForSpeaker(i);
+        const need = tgt - t[i];
+        const raw = Math.max(0, need) + globalOffset;
+        return {ms: round(raw, roundMs), need, tgt};
+      });
+      // Обновляем таблицу значений
+      for (let i=0;i<used.length;i++) {
+        const distCell = document.getElementById(`d_v${i}`);
+        const tCell = document.getElementById(`t_v${i}`);
+        const rCell = document.getElementById(`r_v${i}`);
+        if (!distCell) continue;
+        distCell.textContent = d[i].toFixed(2);
+        tCell.textContent = t[i].toFixed(2);
+        const cls = (delays[i].ms===0) ? 'ok' : '';
+        rCell.innerHTML = `<span class="${cls}">${fmtMs(delays[i].ms)}</span>`;
+      }
+      // Сохраняем для копирования (индексация в пределах видимых)
+      lastComputed = used.map((s,i)=>({index:i+1, name:s.name, delay_ms:(delays[i].ms||0)}));
+    }
+
+    // Форматирование миллисекунд
+    function fmtMs(v){ return (Math.round(v*1000)/1000).toFixed(3) + ' ms'; }
+    // Округление значения к шагу
+    function round(val, stepMs){ if (stepMs <= 0) return val; return Math.round(val / stepMs) * stepMs; }
+    // Копирование задержек в буфер
+    function copyDelays(){
+      const text = lastComputed.map(r=>`${r.index}. ${r.name}: ${r.delay_ms.toFixed(3)} ms`).join('\n');
+      navigator.clipboard.writeText(text).then(()=>{
+        setStatus('Задержки скопированы в буфер обмена.');
+      }).catch(()=>{
+        setStatus('Не удалось скопировать.');
+      });
+    }
+    function setStatus(msg){
+      const el = document.getElementById('copyStatus');
+      el.textContent = msg;
+      setTimeout(()=>{ el.textContent=''; }, 2500);
+    }
+
+    // Функции переключения скрытия левой/правой стороны
+    function toggleLeft() {
+      hideLeft = !hideLeft;
+      // Обновляем визуальный стиль кнопки
+      document.getElementById('toggleLeft').classList.toggle('active', hideLeft);
+      // Перерисовываем интерфейс
+      render();
+    }
+    function toggleRight() {
+      hideRight = !hideRight;
+      document.getElementById('toggleRight').classList.toggle('active', hideRight);
+      render();
+    }
+
+    // Вычисляем диапазон координат для визуализации. Этот диапазон
+    // используется для определения масштаба в канвасе. Мы рассматриваем
+    // только видимые колонки (учитываются флаги hideLeft/hideRight) и
+    // применяем инверсию оси X, если включен invertXEl. Результат
+    // сохраняется в глобальной переменной vizRange. Параметр margin
+    // определяет относительный запас, который будет добавлен при расчёте
+    // масштаба (20 % по умолчанию — 0.2).
+    function computeVizRange() {
+      const invertX = !!(invertXEl && invertXEl.checked);
+      const visible = speakers.filter(s => {
+        if (hideLeft && s.x < 0) return false;
+        if (hideRight && s.x > 0) return false;
+        return true;
+      });
+      if (!visible.length) {
+        // Нет колонок — задаём диапазон по умолчанию
+        vizRange = { minX: -10, maxX: 10, maxY: 20, margin: 0.2 };
+        return;
+      }
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let maxY = 0;
+      visible.forEach(s => {
+        // Инверсируем X при необходимости
+        const xVal = invertX ? -s.x : s.x;
+        if (xVal < minX) minX = xVal;
+        if (xVal > maxX) maxX = xVal;
+        if (s.y > maxY) maxY = s.y;
+      });
+      // Убедимся, что диапазоны не нулевые
+      if (minX === maxX) {
+        minX -= 1;
+        maxX += 1;
+      }
+      if (maxY === 0) {
+        maxY = 1;
+      }
+      // margin можно подстроить, если требуется больше места. 0.2 = 20 %.
+      vizRange = { minX, maxX, maxY, margin: 0.2 };
+    }
+
+    // Экспорт конфигурации в JSON
+    function exportJSON(){
+      const data = {
+        meta: { version:2, created: new Date().toISOString() },
+        env: {
+          tempC: parseFloat(tempEl.value||'0'),
+          speed: parseFloat(speedEl.value||'343.2'),
+          target: { x:parseFloat(txEl.value||'0'), y:parseFloat(tyEl.value||'0'), z:parseFloat(tzEl.value||'0') },
+          roundMs: parseFloat(roundEl.value||'0.1'),
+          globalOffset: parseFloat(globalOffsetEl.value||'0')
+        },
+        speakers
+      };
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'delays_config.json'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Импорт JSON конфигурации
+    function importJSON(){
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/json';
+      inp.onchange = () => {
+        const file = inp.files && inp.files[0];
+        if(!file) return;
+        const fr = new FileReader();
+        fr.onload = () => {
+          try{
+            const data = JSON.parse(fr.result);
+            if (data.env){
+              tempEl.value = data.env.tempC ?? tempEl.value;
+              speedEl.value = data.env.speed ?? speedEl.value;
+              txEl.value = data.env.target?.x ?? txEl.value;
+              tyEl.value = data.env.target?.y ?? tyEl.value;
+              tzEl.value = data.env.target?.z ?? tzEl.value;
+              roundEl.value = data.env.roundMs ?? roundEl.value;
+              globalOffsetEl.value = data.env.globalOffset ?? globalOffsetEl.value;
+            }
+            if (Array.isArray(data.speakers)) speakers = data.speakers;
+            render();
+          }catch(e){ alert('Неверный файл JSON'); }
+        };
+        fr.readAsText(file);
+      };
+      inp.click();
+    }
+
+    // Импорт из PDF: открываем файл, извлекаем текст и ищем координаты
+    function importPDF(){
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.pdf,application/pdf';
+      inp.onchange = async () => {
+        const file = inp.files && inp.files[0];
+        if(!file) return;
+        const arrayBuffer = await file.arrayBuffer();
+        try{
+          // Загружаем документ с помощью pdf.js
+          const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+          let found = [];
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const strings = textContent.items.map(item => item.str);
+            // Склеиваем строки в одну – некоторые PDF разбивают слова
+            const text = strings.join('\n');
+            // Регулярное выражение для поиска блоков
+            // Например: "1. Source: KARA II 1" и "Position (X; Y; Z, m): 10; 0; 12"
+            const sourceRegex = /\bSource\s*:\s*([^\n]+)$/gmi;
+            const positionRegex = /Position\s*\(X;\s*Y;\s*Z,\s*m\)\s*:\s*([+-]?\d+(?:[\.,]\d+)?)[;\s]+([+-]?\d+(?:[\.,]\d+)?)[;\s]+([+-]?\d+(?:[\.,]\d+)?)/gmi;
+            // Сканируем все совпадения с именами
+            let srcMatch;
+            // Чтобы связать имя и координаты, храним последний найденный источник
+            let lastName = null;
+            // Итерация по строкам в порядке появления
+            const lines = text.split(/\n+/);
+            for (let line of lines) {
+              const src = line.match(/Source\s*:\s*(.*)/i);
+              if (src) {
+                lastName = src[1].trim();
+                continue;
+              }
+              const pos = line.match(/Position\s*\(X;\s*Y;\s*Z,\s*m\)\s*:\s*([+-]?\d+(?:[\.,]\d+)?)[;\s]+([+-]?\d+(?:[\.,]\d+)?)[;\s]+([+-]?\d+(?:[\.,]\d+)?)/i);
+              if (pos && lastName) {
+                const x = parseFloat(pos[1].replace(',', '.'));
+                const y = parseFloat(pos[2].replace(',', '.'));
+                const z = parseFloat(pos[3].replace(',', '.'));
+                found.push({ name: lastName, x, y, z, dsp: 0 });
+                lastName = null;
+              }
+            }
+          }
+          if (found.length) {
+            speakers = found;
+            render();
+            setStatus(`Импортировано из PDF: ${found.length} источников`);
+          } else {
+            alert('Не удалось найти координаты в PDF. Проверьте формат.');
+          }
+        } catch (e) {
+          console.error(e);
+          alert('Ошибка при разборе PDF. Проверьте файл или библиотеку pdf.js.');
+        }
+      };
+      inp.click();
+    }
+
+    // Визуализация расположения колонок и точки выравнивания на канвасе
+    function updateCanvas() {
+      const ctx = canvas.getContext('2d');
+      // Подгоняем размеры канваса под контейнер
+      const rect = canvasContainer.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      // Очищаем
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Определяем список отображаемых колонок (учёт флагов скрытия)
+      const invertX = !!(invertXEl && invertXEl.checked);
+      const visible = speakers.filter(s => {
+        if (hideLeft && s.x < 0) return false;
+        if (hideRight && s.x > 0) return false;
+        return true;
+      });
+      // Если vizRange ещё не определён или флаг инверсии изменился, пересчитываем его
+      if (!vizRange) {
+        computeVizRange();
+      }
+      const { minX, maxX, maxY, margin } = vizRange || { minX: -10, maxX: 10, maxY: 20, margin: 0.2 };
+      // Вычисляем диапазоны и запас по осям (minY всегда 0)
+      const rangeX = Math.max(1, maxX - minX);
+      const rangeY = Math.max(1, maxY - 0);
+      const padX = rangeX * margin;
+      const padY = rangeY * margin;
+      // Общий масштаб (одинаковый по X и Y), чтобы объектам не менять соотношение
+      const scaleX = canvas.width / (rangeX + padX * 2);
+      const scaleY = canvas.height / (rangeY + padY * 2);
+      const scale = Math.min(scaleX, scaleY);
+      // Читаем текущие координаты точки выравнивания
+      let refX = parseFloat(txEl.value || '0');
+      let refY = parseFloat(tyEl.value || '0');
+      // Функции перевода координат в координаты канваса. Красная точка всегда
+      // располагается в центре холста. Для колонок вычисляем положение
+      // относительно точки выравнивания. При инверсии X инвертируем все X.
+      function toCanvasX(x) {
+        const val = invertX ? -x : x;
+        return canvas.width / 2 + (val - refX) * scale;
+      }
+      function toCanvasY(y) {
+        return canvas.height / 2 + (y - refY) * scale;
+      }
+      // Рисуем ось X=0 (вертикальная) и ось Y=0 (горизонтальная), если они
+      // находятся в пределах канваса. Эти линии помогают ориентироваться.
+      ctx.strokeStyle = '#2a3a56';
+      ctx.lineWidth = 1;
+      const zeroX = toCanvasX(0);
+      if (zeroX >= 0 && zeroX <= canvas.width) {
+        ctx.beginPath(); ctx.moveTo(zeroX, 0); ctx.lineTo(zeroX, canvas.height); ctx.stroke();
+      }
+      const zeroY = toCanvasY(0);
+      if (zeroY >= 0 && zeroY <= canvas.height) {
+        ctx.beginPath(); ctx.moveTo(0, zeroY); ctx.lineTo(canvas.width, zeroY); ctx.stroke();
+      }
+      // Рисуем колонки с их названиями. Используем небольшой шрифт и смещаем
+      // подпись чуть правее, чтобы не перекрывать квадратик.
+      ctx.fillStyle = '#7cc4ff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      visible.forEach((s) => {
+        const sx = invertX ? -s.x : s.x;
+        const cx = toCanvasX(sx);
+        const cy = toCanvasY(s.y);
+        const size = 8;
+        ctx.fillRect(cx - size / 2, cy - size / 2, size, size);
+        const label = s.name || '';
+        ctx.fillText(label, cx + size, cy);
+      });
+      // Рисуем красную точку (в центре)
+      const rx = canvas.width / 2;
+      const ry = canvas.height / 2;
+      ctx.fillStyle = '#f87171';
+      ctx.beginPath(); ctx.arc(rx, ry, 6, 0, Math.PI * 2); ctx.fill();
+      // Инициализируем обработчики перетаскивания. Передаём коэффициент
+      // масштабирования, чтобы корректно преобразовывать движение мыши в
+      // изменение координат точки выравнивания.
+      setupDrag(scale);
+    }
+
+    // Переменные для панорамирования: удерживаем начальные значения
+    // координат и позиции мыши. Мы панорамируем не только кликом по
+    // красной точке, но и по любому месту в канвасе. Красная точка
+    // остаётся в центре холста, а сдвижение мыши приводит к изменению
+    // координат точки выравнивания.
+    let isDragging = false;
+    let dragStartMouseX = 0;
+    let dragStartMouseY = 0;
+    let dragStartRefX = 0;
+    let dragStartRefY = 0;
+
+    /**
+     * Настраивает обработчики мыши для панорамирования.  scale —
+     * коэффициент преобразования пикселей в координаты (рассчитывается в
+     * updateCanvas). Перетаскивание мыши сдвигает точку выравнивания,
+     * обновляя поля X/Y в левом блоке и пересчитывая задержки.
+     */
+    function setupDrag(scale) {
+      // Удаляем прежние слушатели, чтобы избежать дублирования
+      canvas.onmousedown = null;
+      canvas.onmousemove = null;
+      canvas.onmouseup = null;
+      canvas.onmouseleave = null;
+      canvas.onmousedown = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        dragStartMouseX = e.clientX - rect.left;
+        dragStartMouseY = e.clientY - rect.top;
+        dragStartRefX = parseFloat(txEl.value || '0');
+        dragStartRefY = parseFloat(tyEl.value || '0');
+        isDragging = true;
+      };
+      canvas.onmousemove = (e) => {
+        if (!isDragging) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const dx = x - dragStartMouseX;
+        const dy = y - dragStartMouseY;
+        // Преобразуем пиксельный сдвиг в метры
+        const deltaX = dx / scale;
+        const deltaY = dy / scale;
+        let newRefX = dragStartRefX + deltaX;
+        let newRefY = dragStartRefY + deltaY;
+        const invX = !!(invertXEl && invertXEl.checked);
+        const displayX = invX ? -newRefX : newRefX;
+        txEl.value = displayX.toFixed(2);
+        tyEl.value = newRefY.toFixed(2);
+        // Пересчёт задержек и перерисовка
+        recalc();
+        updateCanvas();
+      };
+      const stop = () => { isDragging = false; };
+      canvas.onmouseup = stop;
+      canvas.onmouseleave = stop;
+    }
+
+    // Экранирование HTML для безопасного отображения
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function escapeAttr(s){ return escapeHtml(String(s)).replace(/"/g,'&quot;'); }
+
+    // Первичная инициализация: пересчитываем скорость звука, рендерим таблицу/канвас
+    autoSpeed();
+    render();
+  </script>
+</body>
+</html>

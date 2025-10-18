@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sub Array Designer — offline v14</title>
+  <!--
+    v14: очередные исправления для удобства и корректной работы
+      * Gradient: теперь первая колонка пары — front (не инвертируется, delay=0),
+        вторая — rear (задний, инвертируется и задерживается на d/c). Это
+        соответствует утверждению, что инвертируется задний сабвуфер【818801717831344†L169-L180】.
+      * Теплокарта: использует дБ-уровни (-40..0 dB) вместо линейной амплитуды,
+        что обеспечивает видимый контраст даже при слабых отличиях. Слайдер
+        “Чувствительность” продолжает управлять степенью растяжения экспоненты.
+      * Layout: позиции сабов располагаются над полотном графика, табы всегда
+        кликабельны, канва polar/heat располагаются подряд, не перекрывая друг
+        друга. .positions-canvas имеет pointer-events: none, чтобы не
+        перехватывать клики.
+      * ARC: цифровая арка работает при φ>0, физически располагая элементы по
+        дуге и вычисляя задержки. При φ=0 остаётся прямым broadside.
+      * Модель затухания: плоская и сферическая (1/r) без изменений.
+* UI в стиле v9: компактная панель параметров, tabs вверху.
+  -->
+  <script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=Uss-tXomK3zsOySWEznJZK4ZfRwBOS8xpKgVDgVeMH9vLQWYILMjlkijfXCRZo_YjRQRYKHzk81SCMVVzBfvz_oeJhf_TFmRsN4N-sn6JeRg9nRADe_jiUry5FL_LuFNmhzJTC_ANSK_V3UdYHLhdusiXtEyVe_QlYpJBdQMOH8vq8UpnhMHQj48kw7k1MTYxrpRql1c8E08rK35y1dI6p19RkDJ_0KgMLbnI0kZ64K_Vd5tUZJqN_CM5w461NuB" charset="UTF-8"></script><link rel="stylesheet" crossorigin="anonymous" href="https://gc.kis.v2.scr.kaspersky-labs.com/E3E8934C-235A-4B0E-825A-35A08381A191/abn/main.css?attr=aHR0cHM6Ly9jaGF0Z3B0LmNvbS9iYWNrZW5kLWFwaS9lc3R1YXJ5L2NvbnRlbnQ_aWQ9ZmlsZS1MN0ZDelRUY0xydHZUV1kyd01WdWFGJnRzPTQ4OTA2NiZwPWZzJmNpZD0xJnNpZz0xMDc2ZGU4MjM1N2M0Y2IwMjY2MGU1ZjY0MTM1MTJmZTQ3NGU5YjI2ZjAwN2IxY2EyZjhmN2RlNTFiZjcxYWIzJnY9MA"/><style>
+    :root{
+      --bg:#0b0d12;
+      --panel:#111521;
+      --accent:#67e8f9;
+      --accent2:#a78bfa;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --card:#0f1422;
+      --border:#1f2937;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:radial-gradient(1200px 1200px at 80% -200px,#182032 0,#0b0d12 45%,#0b0d12 100%) fixed;
+      color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,"SF Pro",Arial;
+      line-height:1.35;
+    }
+    header{
+      position:sticky;
+      top:0;
+      backdrop-filter:blur(10px);
+      background:linear-gradient(180deg,rgba(7,10,16,.9),rgba(7,10,16,.6));
+      border-bottom:1px solid var(--border);
+      z-index:10;
+    }
+    header .wrap{
+      max-width:1300px;
+      margin:0 auto;
+      padding:18px 20px;
+      display:flex;
+      align-items:center;
+    }
+    h1{font-size:20px;display:flex;gap:12px;align-items:center;}
+    .subtitle{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:4px;
+      line-height:1.2;
+    }
+    .beta{font-size:12px;padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#0b0d12;}
+    main{
+      max-width:1300px;
+      margin:20px auto;
+      display:grid;
+      grid-template-columns:430px 1fr;
+      gap:18px;
+      padding:0 20px;
+    }
+    @media (max-width:1100px){ main{ grid-template-columns:1fr; } }
+    .panel{
+      background:linear-gradient(180deg,rgba(17,21,33,.9),rgba(17,21,33,.7));
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      display:flex;
+      flex-direction:column;
+    }
+    .panel h2{
+      font-size:16px;
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      color:#cbd5e1;
+    }
+    .panel .body{padding:14px 16px;flex:1;}
+    .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+    .tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;cursor:pointer;background:#0b101b;color:#cbd5e1;font-size:13px;user-select:none;}
+    .tab.active{background:linear-gradient(90deg,#1f2a44,#16213a);border-color:#2b3956;}
+    label{font-size:12px;color:var(--muted);}
+    input, select, button{
+      background:#0b101b;
+      color:var(--text);
+      border:1px solid #223046;
+      outline:none;
+      border-radius:10px;
+      padding:10px 12px;
+      font:inherit;
+    }
+    input:focus, select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15);}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;}
+    .grid label{margin-top:6px;}
+    .row{display:flex;gap:8px;flex-wrap:wrap;}
+    .btn{padding:10px 14px;border-radius:12px;border:1px solid #26334b;background:linear-gradient(180deg,#142035,#0e1726);cursor:pointer;}
+    .btn:active{transform:translateY(1px);}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:800px){ .split{ grid-template-columns:1fr; } }
+    .card{background:linear-gradient(180deg,#0d1322,#0a1020);border:1px solid var(--border);border-radius:14px;padding:12px;font-size:12px;}
+    .card .value{font-size:18px;margin-top:2px;}
+    /* Increase the height of the cabinet positions panel to allow room for additional labels
+       and ensure the shapes are not distorted. */
+    /*
+      The cabinet positions canvas should grow vertically to fit multiple rows of cabinets
+      and avoid squashing the markers.  Use a minimum height so that small arrays are
+      still legible, but allow the JavaScript to override the element’s intrinsic
+      dimensions as needed.  The script will set the canvas.height property on each
+      draw based on the number of unique Y positions (rows).
+    */
+    .positions-canvas{
+      width:100%;
+      min-height:100px;
+      height:auto;
+      border-radius:12px;
+      background:#0a0f1a;
+      margin-bottom:8px;
+      pointer-events:none;
+    }
+    canvas{display:block;}
+    pre{white-space:pre-wrap;word-break:break-all;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Sub Array Designer <span class="beta">offline v14</span></h1>
+      <!-- Tagline with author credit and contact information -->
+      <div class="subtitle">Made Lunia =) | Сделано Лунтиком и нейросетью | по всем вопросам пишите в телегу <a href="https://t.me/lunevilia" target="_blank" rel="noopener noreferrer">@lunevilia</a></div>
+    </div>
+  </header>
+  <main>
+    <!-- ПАНЕЛЬ НАСТРОЕК -->
+    <section class="panel">
+      <h2>Настройки</h2>
+      <div class="body">
+        <div class="tabs" id="modeTabs">
+          <div class="tab active" data-mode="endfire">End‑Fire</div>
+          <div class="tab" data-mode="gradient">Gradient</div>
+          <div class="tab" data-mode="arc">ARC</div>
+          <div class="tab" data-mode="omni">Omni</div>
+        </div>
+        <div class="grid">
+          <label for="c">Скорость звука, c (м/с)</label><input type="number" id="c" min="280" max="360" step="0.1" value="343">
+          <label for="f">Частота, f (Гц)</label><input type="number" id="f" min="20" max="200" step="1" value="63">
+          <label for="d">Шаг d, м (между элементами)</label><input type="number" id="d" min="0.1" max="10" step="0.01" value="0.8">
+          <label for="N">N (кабинетов на сторону)</label><input type="number" id="N" min="1" max="32" step="1" value="4">
+          <label for="theta0">Угол наведения θ₀ (°)</label><input type="number" id="theta0" min="-180" max="180" step="1" value="0">
+          <label for="linkSteer">Привязать задержки к θ₀ (End‑Fire)</label><select id="linkSteer"><option value="on" selected>on</option><option value="off">off</option></select>
+          <label for="distanceModel">Модель затухания</label><select id="distanceModel"><option value="far">Плоская</option><option value="spherical" selected>Сферическая (1/r)</option></select>
+          <label for="lrMode">L/R режим (два массива)</label><select id="lrMode"><option value="off" selected>выкл</option><option value="on">вкл</option></select>
+          <label for="lrGap">Разнос L↔R, м</label><input type="number" id="lrGap" min="0" step="0.5" value="10">
+          <label for="arcAngle">Угол арки φ (°)</label><input type="number" id="arcAngle" min="0" max="120" step="5" value="0">
+        </div>
+        <div class="split" style="margin-top:10px">
+          <div class="card">
+            Δτ шаг: <span class="value" id="dtStep">—</span><br>
+            λ (длина волны): <span class="value" id="lambdaVal">—</span>
+          </div>
+          <div class="card">
+            Чувствительность теплокарты
+            <input type="range" id="heatExp" min="0.2" max="2.0" step="0.05" value="0.8" style="width:100%">
+            <span id="heatExpLabel">0.80</span><br>
+            Масштаб (Zoom)
+            <input type="range" id="zoom" min="0.5" max="2.0" step="0.1" value="1.0" style="width:100%">
+            <span id="zoomLabel">1.0×</span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="optD">Оптимальное d=λ/4</button>
+          <button class="btn" id="saveJSON">Экспорт</button>
+          <input style="display:none" type="file" id="loadFile" accept="application/json" />
+          <button class="btn" id="loadJSON">Импорт</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">
+          N обозначает число кабинетов на одну сторону массива. В L/R режиме массив дублируется зеркально по ±Y.
+          Сферическая модель учитывает спад уровня ~1/r, плоская волна игнорирует затухание.
+        </div>
+      </div>
+    </section>
+    <!-- ПАНЕЛЬ ВИЗУАЛИЗАЦИИ -->
+    <section class="panel">
+      <h2>Визуализация и результаты</h2>
+      <div class="body">
+        <div class="tabs" id="plotTabs" style="margin-bottom:10px">
+          <div class="tab active" data-plot="polar">Полярная диаграмма</div>
+          <div class="tab" data-plot="heat">2D теплокарта</div>
+        </div>
+        <canvas id="positions" class="positions-canvas"></canvas>
+        <!-- Полярная диаграмма -->
+        <canvas id="polar" width="1024" height="420"></canvas>
+        <!-- Тепловая карта -->
+        <canvas id="heat" width="1024" height="420" style="display:none"></canvas>
+        <div class="split" style="margin-top:10px">
+          <div class="card">
+            Fwd (0°): <span class="value" id="kpiFwd">— dB</span><br>
+            Back (180°): <span class="value" id="kpiRear">— dB</span><br>
+            F/B: <span class="value" id="kpiFB">— dB</span>
+          </div>
+          <div class="card">
+            Каналы: x, y, delay, inv
+            <pre id="delayList" style="margin-top:6px"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+  /* ===== Утилиты ===== */
+  const el  = id => document.getElementById(id);
+  const by  = sel => document.querySelector(sel);
+  const rad = deg => deg * Math.PI / 180;
+  const dbVal = x => 20 * Math.log10(Math.max(x, 1e-9));
+
+  /* ===== Состояние ===== */
+  const state = {
+    mode:'endfire', c:343, f:63, d:0.8, N:4, theta0:0,
+    linkSteer:true, distanceModel:'spherical', lrMode:false, lrGap:10,
+    arcAngle:0, heatExp:0.8, zoom:1.0
+  };
+
+  /* ===== Функции построения массивов ===== */
+  function computeCabs(){
+    const cabs = [];
+    const {mode,d,N} = state;
+    if(mode === 'endfire'){
+      for(let i=0;i<N;i++) cabs.push({x:i*d, y:0, delay_s:0, inv:1, amp:1});
+    } else if(mode === 'gradient'){
+      /*
+        Gradient (cardioid) arrays: the first cabinet (front) is positioned at the
+        origin (x=0) with no delay and normal polarity.  The second cabinet (rear)
+        is placed a distance d behind the front (towards the stage, i.e. at +x) and
+        is delayed by d/c seconds and polarity‑inverted【857609313257000†L238-L252】.
+        Additional pairs follow the same pattern, with fronts at even multiples of 2*d
+        and rears at fronts + d.  If the number of cabinets is odd, an extra front
+        loudspeaker (no delay, normal polarity) is appended at the end.
+      */
+      const pairs = Math.floor(N / 2);
+      for(let p = 0; p < pairs; p++){
+        // Front loudspeaker: even positions (2*p*d) with no delay and normal polarity
+        const frontX = 2 * p * d;
+        cabs.push({ x: frontX, y: 0, delay_s: 0, inv: 1, amp: 1 });
+        // Rear loudspeaker: placed d metres behind the front, delayed and inverted
+        const rearX  = frontX + d;
+        cabs.push({ x: rearX, y: 0, delay_s: d / state.c, inv: -1, amp: 1 });
+      }
+      if(N % 2 === 1){
+        // Append one additional front loudspeaker (no delay) if N is odd
+        const idx = pairs * 2;
+        const frontX = idx * d;
+        cabs.push({ x: frontX, y: 0, delay_s: 0, inv: 1, amp: 1 });
+      }
+    } else if(mode === 'arc'){
+      // Arc mode: cabinets are physically arranged along a vertical line
+      // but delays and display positions simulate a circular arc.
+      const count = N;
+      const phi = state.arcAngle * Math.PI / 180;
+      // Total span between first and last cabinets is (N‑1)*d plus any
+      // additional length specified by the L/R gap slider.  Use this span to
+      // compute the physical spacing between cabinets.  When lrGap > 0, the
+      // spacing increases; when lrGap = 0 the spacing is simply d.  This
+      // resolves the previous bug where increasing lrGap shortened the arc.
+      const totalDist = (count > 1 ? (count - 1) * d + state.lrGap : 0);
+      // Compute the physical spacing along the Y axis.  For a single
+      // cabinet spacing is irrelevant, so set to zero to avoid NaN.
+      const spacing = (count > 1) ? (totalDist / (count - 1)) : 0;
+      // Determine the starting Y coordinate so that the cabinets are centred
+      // vertically around zero.  If count == 1 then start at 0.
+      const startY = (count > 1) ? (-totalDist / 2) : 0;
+      // For phi <= 0 (broadside) we do not apply any delays; cabinets are
+      // physically spaced according to the total span.  We still record
+      // virtual positions equal to the physical ones for consistency.
+      if(phi <= 0 || count < 2){
+        for(let i=0; i<count; i++){
+          const yPos = startY + i * spacing;
+          const cab = { x: 0, y: yPos, delay_s: 0, inv: 1, amp: 1 };
+          // virtual positions coincide with physical positions in a straight line
+          cab.vx = 0;
+          cab.vy = yPos;
+          cabs.push(cab);
+        }
+      } else {
+        // For a true arc we keep the physical positions along the vertical
+        // line but compute virtual positions and delays based on a circular
+        // arc.  The radius R is derived from the chord length (totalDist)
+        // and the subtended angle phi (in radians): R = totalDist / phi.
+        const R = totalDist / phi;
+        // Temporary arrays to store delays and virtual positions
+        const delays = new Array(count);
+        const virtX  = new Array(count);
+        const virtY  = new Array(count);
+        let minDelay = Infinity;
+        for(let i=0; i<count; i++){
+          const theta = -phi/2 + (phi * i / (count - 1));
+          const xArc = R * (1 - Math.cos(theta));
+          const yArc = R * Math.sin(theta);
+          virtX[i] = xArc;
+          virtY[i] = yArc;
+          const dly = xArc / state.c;
+          delays[i] = dly;
+          if(dly < minDelay) minDelay = dly;
+        }
+        // Normalise delays so that the minimum delay becomes zero
+        for(let i=0; i<count; i++){
+          const physY = startY + i * spacing;
+          const cabDelay = delays[i] - minDelay;
+          const cab = { x: 0, y: physY, delay_s: cabDelay, inv: 1, amp: 1 };
+          cab.vx = virtX[i];
+          cab.vy = virtY[i];
+          cabs.push(cab);
+        }
+      }
+    } else if(mode === 'omni'){
+      if(state.lrMode){
+        const half = state.lrGap/2;
+        cabs.push({x:0,y:-half,delay_s:0,inv:1,amp:1});
+        cabs.push({x:0,y:+half,delay_s:0,inv:1,amp:1});
+      } else {
+        cabs.push({x:0,y:0,delay_s:0,inv:1,amp:1});
+      }
+    }
+    // End‑Fire steering (if linkSteer).  In an end‑fire array the front‑most
+    // cabinets should have the largest delay and the last cabinet should have
+    // zero delay so that the wavefront sums forward.  We therefore assign
+    // delays in descending order: the first cabinet (idx=0) gets delay
+    // (N-1)*dt, the next gets (N-2)*dt, and the last gets 0.  All
+    // cabinets maintain normal polarity (inv = 1).
+    if(mode === 'endfire' && state.linkSteer){
+      const dt = (state.d * Math.cos(rad(state.theta0))) / state.c;
+      const n = cabs.length;
+      cabs.forEach((s, idx) => {
+        s.delay_s = dt * (n - 1 - idx);
+        s.inv = 1;
+      });
+    }
+    // Ensure virtual positions are defined for all cabinets.  When the arc
+    // mode populates `vx`/`vy` these values are used for display purposes.
+    // For other modes, copy the physical positions into `vx`/`vy`.
+    cabs.forEach(s => {
+      if(s.vx === undefined) s.vx = s.x;
+      if(s.vy === undefined) s.vy = s.y;
+    });
+    return cabs;
+  }
+
+  /* ===== Расширяем в стерео ===== */
+  function expandedSources(){
+    const base = computeCabs();
+    // Do not duplicate the array when in ARC mode: arc arrays are always single.
+    if(state.mode === 'omni' || state.mode === 'arc') return base;
+    if(!state.lrMode) return base;
+    const half = state.lrGap/2;
+    // Duplicate base array for left and right channels.  Adjust both the
+    // physical Y coordinate and the virtual Y coordinate (if defined) by
+    // +/-half so that the displayed positions remain consistent with
+    // the physical offset in L/R mode.
+    const left  = base.map(s => {
+      const copy = {...s};
+      copy.y  = s.y - half;
+      if(copy.vy !== undefined) copy.vy = s.vy - half;
+      return copy;
+    });
+    const right = base.map(s => {
+      const copy = {...s};
+      copy.y  = s.y + half;
+      if(copy.vy !== undefined) copy.vy = s.vy + half;
+      return copy;
+    });
+    return [...left, ...right];
+  }
+
+  /* ===== Расчёт полярной диаграммы ===== */
+  function computeResponse(){
+    const angles = [...Array(360).keys()];
+    const {c,f,distanceModel} = state;
+    const w = 2*Math.PI*f;
+    const k = w/c;
+    const src = expandedSources();
+    const res = [];
+    for(const degA of angles){
+      const th = rad(degA);
+      let re=0, im=0;
+      for(const s of src){
+        // For gradient and end‑fire modes flip the x‑coordinate so that the
+        // physical front (towards negative X) maps to 0° in polar
+        // calculations. Without flipping, end‑fire arrays delayed at the
+        // front would appear to radiate backwards. For other modes use
+        // physical X directly.
+        const xCoord = (state.mode === 'gradient' || state.mode === 'endfire') ? -s.x : s.x;
+        const phase = k*(xCoord*Math.cos(th) + s.y*Math.sin(th)) - w*s.delay_s;
+        const rfar = distanceModel==='spherical' ? Math.max(1, Math.hypot(xCoord, s.y)) : 1;
+        const a = (s.amp*s.inv)/rfar;
+        re += a*Math.cos(phase);
+        im += a*Math.sin(phase);
+      }
+      const mag = Math.hypot(re, im) / Math.max(1, src.length);
+      res.push({ang:degA, lin:mag, db:dbVal(mag)});
+    }
+    // Determine which angles correspond to the forward (front) and backward
+    // (rear) directions for the KPI.  For gradient and end‑fire modes we
+    // flip the X‑axis during phase calculations; this means the physical
+    // front (towards negative X) maps to 180° in the polar plot, while the
+    // rear (towards positive X) maps to 0°.  For other modes (omni and
+    // broadside/arc) the forward direction remains at 0° and rear at 180°.
+    let idxFwd = 0;
+    let idxBack = 180;
+    if(state.mode === 'gradient' || state.mode === 'endfire'){
+      idxFwd  = 180;
+      idxBack = 0;
+    }
+    const atFwd  = res[idxFwd]?.db ?? -999;
+    const atBack = res[idxBack]?.db ?? -999;
+    return {polar:res, kpi:{at0: atFwd, at180: atBack, fb: atFwd - atBack}};
+  }
+
+  /* ===== Расчёт теплокарты (dB) ===== */
+  function computeHeatmap(){
+    const baseXMax = 24;
+    const baseYMax = Math.max(10, state.lrGap/2 + 6);
+    const xMax = baseXMax / state.zoom;
+    const yMax = baseYMax / state.zoom;
+    const nx = 180;
+    const ny = 120;
+    const w = 2*Math.PI*state.f;
+    const k = w/state.c;
+    const src = expandedSources();
+    // compute mean position of all sources to center the array in the heatmap
+    let meanX = 0, meanY = 0;
+    if(src.length > 0){
+      // For all modes, centre the array horizontally and vertically so that the
+      // aggregate of all sources is centred in the heatmap.  Flipping of
+      // coordinates for gradient mode is handled below when computing dx and
+      // marker positions.
+      src.forEach(s => { meanX += s.x; meanY += s.y; });
+      meanX /= src.length;
+      meanY /= src.length;
+    }
+    // allocate field array for decibel values
+    const field = new Float32Array(nx*ny);
+    let minDb = Infinity;
+    let maxDb = -Infinity;
+    // For gradient mode we no longer flip the x‑axis here; the orientation
+    // adjustment for the 2D heatmap is handled in drawHeat.  This ensures
+    // consistent phase calculations for all modes.
+    for(let iy=0; iy<ny; iy++){
+      // y coordinate varies symmetrically from -yMax to +yMax
+      const y = -yMax + (2*yMax)*iy/(ny-1);
+      for(let ix=0; ix<nx; ix++){
+        // x coordinate varies symmetrically from -xMax to +xMax. This centers the array horizontally
+        const x = -xMax + (2*xMax)*ix/(nx-1);
+        let re=0, im=0;
+        for(const s of src){
+          // Shift source position by its mean to centre the array.  Do not
+          // mirror the x‑coordinate here; the physical arrangement of front (0 m)
+          // and rear (+d) will naturally place the front loudspeaker on the
+          // left side of the heatmap after centring.  Flipping the x‑axis
+          // earlier caused the cardioid energy lobe to appear on the wrong
+          // side.  See gradient array theory【857609313257000†L238-L252】.
+          // Center around the mean and mirror the X coordinate for gradient
+          // arrays so that the cardioid energy lobe appears on the front side
+          // (towards negative world X).  Without this mirroring the spherical
+          // propagation model produces a lobe facing towards positive X even
+          // when the rear cabinet is delayed and inverted【857609313257000†L238-L252】.
+          const sx = s.x - meanX;
+          const sy = s.y - meanY;
+          // For all modes use the physical x-coordinate without flipping.  We
+          // apply horizontal mirroring when drawing the heatmap (in drawHeat)
+          // for gradient arrays.  This ensures that the computed pressure
+          // field corresponds to the real-world orientation (with energy
+          // directed toward positive X) while still displaying the front on
+          // the left side of the heatmap after mirroring.
+          const xUse = x;
+          const dx = xUse - sx;
+          const dy = y - sy;
+          const r  = Math.hypot(dx, dy);
+          const phase = k*r - w*s.delay_s;
+          const amp = s.amp*s.inv / Math.max(r, 0.5);
+          re += amp*Math.cos(phase);
+          im += amp*Math.sin(phase);
+        }
+        const mag = Math.hypot(re, im) / Math.max(1, src.length);
+        const db = 20*Math.log10(mag + 1e-9);
+        // clamp to [-60, 0] for visibility
+        field[iy*nx + ix] = db;
+        if(db < minDb) minDb = db;
+        if(db > maxDb) maxDb = db;
+      }
+    }
+    // set a fixed dynamic range from -40 to 0 dB to ensure contrast
+    const minRange = -40;
+    const maxRange = 0;
+    return {nx, ny, field, minDb: Math.max(minDb, minRange), maxDb: Math.min(maxDb, maxRange), xMax, yMax};
+  }
+
+  /* ===== Рисуем полярную диаграмму ===== */
+  function drawPolar(){
+    const canvas = el('polar');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W/2;
+    const cy = H/2;
+    const R = Math.min(W, H)*0.45;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#0a0f1a'; ctx.fillRect(0,0,W,H);
+    const data = computeResponse();
+    // grid rings
+    ctx.save(); ctx.translate(cx,cy);
+    ctx.strokeStyle = '#1f2a3d'; ctx.lineWidth = 1;
+    const ticks = [0,-6,-12,-18,-24,-30];
+    ticks.forEach((db,i) => {
+      const r = R * (Math.abs(db)/30);
+      ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+    });
+    // axes
+    ctx.beginPath(); ctx.moveTo(-R,0); ctx.lineTo(R,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-R); ctx.lineTo(0,R); ctx.stroke();
+    // labels
+    ctx.fillStyle = '#7c8aa7'; ctx.font = '12px ui-sans-serif';
+    ctx.fillText('Left', -R-24, 0);
+    ctx.fillText('Right', R+4, 0);
+    ctx.fillText('Front', -20, -R-8);
+    ctx.fillText('Back', -18, R+16);
+    // curve
+    const minDb = -30;
+    const maxDb = 0;
+    ctx.beginPath();
+    data.polar.forEach((pt, idx) => {
+      // rotate polar plot by -90° so that compute 0° (east) is displayed at the top (north)
+      // In canvas, positive y is downward, so subtracting 90° maps 0° to up.
+      const a = rad(pt.ang - 90);
+      const t = Math.max(0, Math.min(1, (pt.db - minDb)/(maxDb - minDb)));
+      const r = t * R;
+      const x = r*Math.cos(a);
+      const y = r*Math.sin(a);
+      if(idx === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(-R,-R,R,R);
+    grad.addColorStop(0,'#67e8f9');
+    grad.addColorStop(1,'#a78bfa');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(103,232,249,0.35)';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    // steer arrow
+    // adjust arrow direction for -90° rotation
+    const a0 = rad(state.theta0 - 90);
+    const arrowX = R*Math.cos(a0);
+    const arrowY = R*Math.sin(a0);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(arrowX, arrowY); ctx.stroke();
+    // arrow head
+    const headSize=12;
+    const ang1 = a0 + rad(150);
+    const ang2 = a0 - rad(150);
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY);
+    ctx.lineTo(arrowX - headSize*Math.cos(ang1), arrowY - headSize*Math.sin(ang1));
+    ctx.lineTo(arrowX - headSize*Math.cos(ang2), arrowY - headSize*Math.sin(ang2));
+    ctx.closePath(); ctx.fill();
+    // θ₀ label
+    ctx.fillStyle = '#e5e7eb'; ctx.font='bold 13px ui-sans-serif';
+    ctx.fillText(`θ₀ = ${state.theta0.toFixed(0)}°`, arrowX*0.6 - 18, arrowY*0.6 - 8);
+    ctx.restore();
+    // update KPI
+    el('kpiFwd').textContent  = data.kpi.at0.toFixed(1) + ' dB';
+    el('kpiRear').textContent = data.kpi.at180.toFixed(1) + ' dB';
+    el('kpiFB').textContent   = (data.kpi.fb).toFixed(1) + ' dB';
+    // dt step & lambda
+    const lam = state.c/state.f;
+    el('lambdaVal').textContent = lam.toFixed(3) + ' М';
+    if(state.mode === 'endfire'){
+      const dt = (state.d * Math.cos(rad(state.theta0))) / state.c;
+      el('dtStep').textContent = (dt*1000).toFixed(2) + ' мс';
+    } else if(state.mode === 'gradient'){
+      const dt = state.d/state.c;
+      el('dtStep').textContent = (dt*1000).toFixed(2) + ' мс';
+    } else if(state.mode === 'arc'){
+      // arc: show max delay difference (ms)
+      const cabs = computeCabs();
+      let minD=Infinity,maxD=-Infinity;
+      cabs.forEach(s => { if(s.delay_s < minD) minD = s.delay_s; if(s.delay_s > maxD) maxD = s.delay_s; });
+      const diff = (maxD - minD) * 1000;
+      el('dtStep').textContent = diff.toFixed(2) + ' мс';
+    } else {
+      el('dtStep').textContent = '0 мс';
+    }
+    // delay list
+    const src = expandedSources();
+    const lines = src.map((s, idx) => `Ch${String(idx+1).padStart(2,'0')} x=${s.x.toFixed(2)} m y=${s.y.toFixed(2)} m delay=${(s.delay_s*1000).toFixed(2)} ms invert=${s.inv===-1?'YES':'no'}`);
+    el('delayList').textContent = lines.join('\n');
+  }
+
+  /* ===== Рисуем теплокарту ===== */
+  function drawHeat(){
+    const canvas = el('heat');
+    const ctx = canvas.getContext('2d');
+    const {nx,ny,field,minDb,maxDb,xMax,yMax} = computeHeatmap();
+    const img = ctx.createImageData(nx, ny);
+    const exp = state.heatExp;
+    const range = (maxDb - minDb) || 1;
+    for(let i=0;i<field.length;i++){
+      let t = (field[i] - minDb) / range;
+      t = Math.max(0, Math.min(1, Math.pow(t, exp)));
+      const hue = 220 - 220 * t;
+      const sat = 95;
+      const light = 50 + 45 * t;
+      const [r,g,b] = hslToRgb(hue/360, sat/100, light/100);
+      img.data[i*4+0] = Math.round(r*255);
+      img.data[i*4+1] = Math.round(g*255);
+      img.data[i*4+2] = Math.round(b*255);
+      img.data[i*4+3] = 255;
+    }
+    const tmp = document.createElement('canvas'); tmp.width = nx; tmp.height = ny;
+    tmp.getContext('2d').putImageData(img,0,0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Draw the heatmap image. For gradient mode, we compute the pressure field
+    // using the physical X coordinates (no flipping) and then mirror the
+    // resulting image horizontally here.  Mirroring moves the main lobe of
+    // the cardioid (which points towards positive world X) to the left side
+    // of the heatmap so that the "Front" is on the left.
+    if(state.mode === 'gradient' || state.mode === 'endfire'){
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(tmp, -canvas.width, 0, canvas.width, canvas.height);
+      ctx.restore();
+    } else {
+      ctx.drawImage(tmp, 0, 0, canvas.width, canvas.height);
+    }
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+    // we center the heatmap around the mean of source positions. Thus horizontal and vertical axes
+    // are drawn at the centre of the canvas to mark the array's centre.
+    const hy = canvas.height * 0.5;
+    ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(canvas.width, hy); ctx.stroke();
+    const vx = canvas.width * 0.5;
+    ctx.beginPath(); ctx.moveTo(vx,0); ctx.lineTo(vx, canvas.height); ctx.stroke();
+    // channel markers
+    const src = expandedSources();
+    // Compute the mean of the virtual coordinates to centre markers.  The
+    // physical heatmap is centred on physical positions, but markers are
+    // displayed using virtual positions (vx/vy) so that arc arrays are
+    // visualised correctly.  For non‑arc modes vx/vy equal x/y.
+    let meanVX = 0, meanVY = 0;
+    if(src.length > 0){
+      src.forEach(s => { meanVX += s.vx; meanVY += s.vy; });
+      meanVX /= src.length;
+      meanVY /= src.length;
+    }
+    src.forEach((s, idx) => {
+      // Shift virtual position by the mean to centre the markers
+      const sx = s.vx - meanVX;
+      const sy = s.vy - meanVY;
+      // Map to canvas coordinates.  Mirror horizontally for gradient and
+      // end‑fire so that the physical front (negative X) appears on the left.
+      let px = canvas.width  * ((sx + xMax) / (2*xMax));
+      if(state.mode === 'gradient' || state.mode === 'endfire'){
+        px = canvas.width - px;
+      }
+      const py = canvas.height * (1 - ((sy + yMax) / (2*yMax)));
+      const size = 8;
+      ctx.fillStyle = s.inv === -1 ? '#fb7185' : '#67e8f9';
+      ctx.fillRect(px - size/2, py - size/2, size, size);
+      ctx.fillStyle = '#e5e7eb'; ctx.font='9px ui-monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(`${idx+1}`, px + 6, py - 4);
+      const delayMs = (s.delay_s*1000).toFixed(2);
+      const invTxt = s.inv === -1 ? 'inv' : '';
+      ctx.fillText(`${delayMs}ms ${invTxt}`, px + 6, py + 4);
+    });
+    // update dt & λ for heat tab using same calls as polar
+    const lam = state.c/state.f;
+    el('lambdaVal').textContent = lam.toFixed(3) + ' М';
+    if(state.mode === 'endfire'){
+      const dt = (state.d * Math.cos(rad(state.theta0))) / state.c;
+      el('dtStep').textContent = (dt*1000).toFixed(2) + ' мс';
+    } else if(state.mode === 'gradient'){
+      const dt = state.d/state.c;
+      el('dtStep').textContent = (dt*1000).toFixed(2) + ' мс';
+    } else if(state.mode === 'arc'){
+      const cabs = computeCabs();
+      let minD=Infinity,maxD=-Infinity;
+      cabs.forEach(s => { if(s.delay_s < minD) minD = s.delay_s; if(s.delay_s > maxD) maxD = s.delay_s; });
+      const diff = (maxD - minD) * 1000;
+      el('dtStep').textContent = diff.toFixed(2) + ' мс';
+    } else {
+      el('dtStep').textContent = '0 мс';
+    }
+    // update KPI? (for heat we may keep old values)
+
+    // Update the delay list for heatmap view.  Show the same channel
+    // information as in the polar view so that changes in the array are
+    // reflected immediately when switching tabs.
+    const srcList = expandedSources();
+    const linesHeat = srcList.map((s, idx) => `Ch${String(idx+1).padStart(2,'0')} x=${s.x.toFixed(2)} m y=${s.y.toFixed(2)} m delay=${(s.delay_s*1000).toFixed(2)} ms invert=${s.inv===-1?'YES':'no'}`);
+    el('delayList').textContent = linesHeat.join('\n');
+  }
+  function hslToRgb(h, s, l){
+    let r, g, b;
+    if(s === 0){ r = g = b = l; }
+    else{
+      const hue2rgb = function(p,q,t){
+        if(t < 0) t += 1;
+        if(t > 1) t -= 1;
+        if(t < 1/6) return p + (q - p) * 6 * t;
+        if(t < 1/2) return q;
+        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l*(1+s) : l + s - l*s;
+      const p = 2*l - q;
+      r = hue2rgb(p,q,h + 1/3);
+      g = hue2rgb(p,q,h);
+      b = hue2rgb(p,q,h - 1/3);
+    }
+    return [r,g,b];
+  }
+
+  /* ===== Рисуем позиции ===== */
+  function drawPositions(){
+    const canvas = el('positions');
+    // On high‑DPI displays the canvas needs a larger internal buffer than its
+    // CSS pixel size to render sharply.  Determine the device pixel ratio and
+    // adjust the canvas width and height accordingly.  First measure the
+    // current CSS size of the element.  We will update the drawing buffer
+    // dimensions and then rescale the context so that drawing commands use
+    // CSS units.
+    const ratio = window.devicePixelRatio || 1;
+    const displayedWidth = canvas.clientWidth;
+
+    // Determine the set of unique Y coordinates (rows) sorted descending (top row highest y)
+    const srcTmp = expandedSources();
+    // Use the virtual Y coordinate (vy) when present for determining rows.  For
+    // non‑arc modes vy === y so this has no effect.  Sorting descending
+    // ensures the top row corresponds to the highest Y coordinate.
+    const uniqueYsTmp = Array.from(new Set(srcTmp.map(s => s.vy))).sort((a, b) => b - a);
+    const rowCountTmp = uniqueYsTmp.length;
+    const baseHeightTmp = 60;
+    const perRowTmp = 60;
+    const marginTmp = 10;
+    const desiredHeightTmp = Math.max(baseHeightTmp, rowCountTmp * perRowTmp + marginTmp * 2);
+
+    // Set the element’s CSS height so that the container expands properly.
+    canvas.style.height = desiredHeightTmp + 'px';
+    // Resize the canvas’s internal pixel buffer only if necessary.
+    const newWidth = Math.floor(displayedWidth * ratio);
+    const newHeight = Math.floor(desiredHeightTmp * ratio);
+    if (canvas.width !== newWidth || canvas.height !== newHeight) {
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+    }
+    // Now obtain the context and set the transform to map CSS units to device pixels.
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // Obtain the list of virtual loudspeakers including L/R duplicates
+    const src = expandedSources();
+    // If nothing to draw, clear and return early
+    if (src.length === 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#0a0f1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    // Determine the set of unique Y coordinates (rows) sorted descending (top row highest y)
+    // Determine the set of unique virtual Y coordinates (rows) sorted
+    // descending.  Use vy if defined; otherwise fallback to y.  For arc
+    // mode vy holds the position along the virtual arc.
+    const uniqueYs = Array.from(new Set(src.map(s => s.vy))).sort((a, b) => b - a);
+    const rowCount = uniqueYs.length;
+    // Dynamically adjust canvas height to accommodate multiple rows.  Use a
+    // base height and add extra space per additional row.  The min-height in
+    // CSS ensures the element grows in the layout.
+    const baseHeight = 60;
+    // Provide generous vertical spacing per row so that the index, delay and
+    // coordinate text do not overlap when there are two mirrored rows in L/R mode.
+    const perRow = 60;
+    // Define a margin above and below the rows.  This margin is used both
+    // to compute the desired canvas height and when positioning each row.
+    const margin = 10;
+    // Calculate the desired canvas height: each row takes up `perRow` pixels and
+    // the extra margin on both sides ensures the text does not touch the edges.
+    const desiredHeight = Math.max(baseHeight, rowCount * perRow + margin * 2);
+    // Determine the CSS pixel dimensions after the high‑DPI adjustments above.  Use
+    // canvas.clientWidth and the computed desiredHeight to derive drawing
+    // coordinates in CSS units.  H and W are used throughout the rest of this
+    // function; they represent the logical size of the canvas in CSS pixels and
+    // not the scaled drawing buffer dimensions.
+    const H = desiredHeight;
+    const W = canvas.clientWidth;
+    // Clear and fill the background
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0a0f1a';
+    ctx.fillRect(0, 0, W, H);
+    // Compute the vertical pixel positions for each row.  Position the centre of
+    // each row at `margin + perRow/2 + i*perRow`, leaving equal space above and
+    // below the rows.  `margin` and `perRow` are defined above.
+    const rowPositions = uniqueYs.map((_, i) => margin + (perRow / 2) + i * perRow);
+    // Determine the horizontal range (min and max) of cabinet positions.  Centre
+    // the array around its mean X coordinate for all modes, then mirror the
+    // centred X coordinate when in gradient mode so that front cabinets appear
+    // on the left side of the positions panel.  Compute min/max based on the
+    // display coordinates and add a small padding.
+    // Compute the mean of the virtual X coordinate for centring.  For non‑arc
+    // modes vx === x so this behaves identically.
+    let meanXDisp = 0;
+    if(src.length > 0){
+      src.forEach(s => { meanXDisp += s.vx; });
+      meanXDisp /= src.length;
+    }
+    let minX = Infinity, maxX = -Infinity;
+    src.forEach(s => {
+      // Centre around the mean virtual X coordinate.  Do not mirror X here;
+      // mirroring is handled when drawing markers.  Using vx for all modes
+      // ensures arc cabinets are spaced based on their virtual positions.
+      const dispX = s.vx - meanXDisp;
+      if (dispX < minX) minX = dispX;
+      if (dispX > maxX) maxX = dispX;
+    });
+    // Add padding equal to one cabinet spacing or 0.5 m at both ends
+    const padX = Math.max(0.5, (maxX - minX) * 0.1);
+    minX -= padX;
+    maxX += padX;
+    const rangeX = maxX - minX;
+    const scaleX = rangeX > 0 ? W / rangeX : 1;
+    // Determine pixel coordinate of global x=0 for drawing the vertical axis.  After
+    // centering around meanXDisp and optionally negating for gradient, the
+    // display coordinate corresponding to x=0 becomes either -meanXDisp (non‑gradient)
+    // or +meanXDisp (gradient).
+    // Zero world coordinate after centering is at -meanXDisp
+    const zeroDispX = -meanXDisp;
+    const zeroX = (zeroDispX - minX) * scaleX;
+    // Draw a faint vertical reference line at x=0 to delineate front/back
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(zeroX, 0);
+    ctx.lineTo(zeroX, H);
+    ctx.stroke();
+    // Draw row labels (“Front” on the left, “Rear” on the right) on every row
+    // Make the font slightly larger for better legibility
+    ctx.fillStyle = '#7c8aa7';
+    ctx.font = '14px ui-sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    rowPositions.forEach(y => {
+      ctx.fillText('Front', 4, y);
+      // Right‑justify the “Rear” label so it aligns with the canvas edge
+      const rearText = 'Rear';
+      const widthText = ctx.measureText(rearText).width;
+      ctx.fillText(rearText, W - widthText - 4, y);
+    });
+    // For each cabinet (including L/R duplicates) draw the marker, arrow and details
+    src.forEach((s, idx) => {
+      // Convert virtual X to display coordinate and then to pixel.  First
+      // centre around the mean virtual X, then map to canvas coordinates.
+      let dispX = s.vx - meanXDisp;
+      const cx = (dispX - minX) * scaleX;
+      // Determine the vertical position based on the virtual Y index
+      const rowIndex = uniqueYs.indexOf(s.vy);
+      const cy = rowPositions[rowIndex];
+      const size = 10;
+      // Choose colour based on polarity: cyan for normal, pink for inverted
+      ctx.fillStyle = s.inv === -1 ? '#fb7185' : '#67e8f9';
+      ctx.fillRect(cx - size / 2, cy - size / 2, size, size);
+      // Draw an arrow pointing towards +X (front).  Start at the right edge of the square.
+      ctx.beginPath();
+      const arrowStartX = cx + size / 2 + 3;
+      ctx.moveTo(arrowStartX, cy);
+      ctx.lineTo(arrowStartX + 6, cy - 3);
+      ctx.lineTo(arrowStartX + 6, cy + 3);
+      ctx.closePath();
+      ctx.fill();
+      // Draw textual details below the rectangle
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      // First line: cabinet index (1‑based)
+      ctx.font = 'bold 12px ui-monospace';
+      const textY0 = cy + size / 2 + 2;
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillText(`${idx + 1}`, cx, textY0);
+      // Second line: delay in milliseconds and polarity string
+      ctx.font = '11px ui-monospace';
+      const delayMs = (s.delay_s * 1000).toFixed(2);
+      const polarity = s.inv === -1 ? 'inv' : 'norm';
+      ctx.fillText(`${delayMs}ms ${polarity}`, cx, textY0 + 11);
+      // Third line: X coordinate in metres
+      ctx.fillText(`${s.x.toFixed(2)}m`, cx, textY0 + 22);
+    });
+  }
+
+  /* ===== Обновление UI ===== */
+  function updateUI(){
+    state.c = parseFloat(el('c').value) || 343;
+    state.f = parseFloat(el('f').value) || 63;
+    state.d = parseFloat(el('d').value) || 0.8;
+    state.N = Math.max(1, Math.round(parseFloat(el('N').value) || 1));
+    state.theta0 = Math.max(-180, Math.min(180, parseFloat(el('theta0').value) || 0));
+    state.linkSteer = el('linkSteer').value === 'on';
+    state.distanceModel = el('distanceModel').value;
+    state.lrMode = el('lrMode').value === 'on';
+    state.lrGap = Math.max(0, parseFloat(el('lrGap').value) || 0);
+    state.arcAngle = Math.max(0, Math.min(180, parseFloat(el('arcAngle').value) || 0));
+    state.heatExp = parseFloat(el('heatExp').value) || 0.8;
+    state.zoom = parseFloat(el('zoom').value) || 1.0;
+    el('heatExpLabel').textContent = state.heatExp.toFixed(2);
+    el('zoomLabel').textContent = state.zoom.toFixed(1) + '×';
+    drawPositions();
+    const which = by('#plotTabs .tab.active').dataset.plot;
+    if(which === 'polar'){
+      el('polar').style.display = '';
+      el('heat').style.display = 'none';
+      drawPolar();
+    } else {
+      el('polar').style.display = 'none';
+      el('heat').style.display = '';
+      drawHeat();
+    }
+  }
+
+  /* ===== Навеска событий ===== */
+  document.querySelectorAll('#modeTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#modeTabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      state.mode = tab.dataset.mode;
+      updateUI();
+    });
+  });
+  document.querySelectorAll('#plotTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#plotTabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      updateUI();
+    });
+  });
+  ['c','f','d','N','theta0','linkSteer','distanceModel','lrMode','lrGap','arcAngle','heatExp','zoom'].forEach(id => {
+    el(id).addEventListener('input', updateUI);
+    el(id).addEventListener('change', updateUI);
+  });
+  // оптимальный d
+  el('optD').addEventListener('click', () => {
+    const lam = state.c/state.f;
+    const opt = lam/4;
+    el('d').value = opt.toFixed(3);
+    updateUI();
+  });
+  // экспорт / импорт
+  el('saveJSON').addEventListener('click', () => {
+    const payload = JSON.stringify(state, null, 2);
+    const blob = new Blob([payload], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sub_array_settings.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  el('loadJSON').addEventListener('click', () => el('loadFile').click());
+  el('loadFile').addEventListener('change', ev => {
+    const file = ev.target.files?.[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(reader.result);
+        Object.assign(state, {
+          mode: obj.mode || 'endfire', c: obj.c || 343, f: obj.f || 63, d: obj.d || 0.8, N: obj.N || 4,
+          theta0: obj.theta0 || 0, linkSteer: !!obj.linkSteer, distanceModel: obj.distanceModel || 'spherical',
+          lrMode: !!obj.lrMode, lrGap: obj.lrGap || 10, arcAngle: obj.arcAngle || 0,
+          heatExp: obj.heatExp || 0.8, zoom: obj.zoom || 1.0
+        });
+        // sync UI
+        document.querySelectorAll('#modeTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.mode === state.mode));
+        document.querySelectorAll('#plotTabs .tab').forEach((t,i) => { if(i===0) t.classList.add('active'); else t.classList.remove('active'); });
+        el('c').value=state.c; el('f').value=state.f; el('d').value=state.d; el('N').value=state.N;
+        el('theta0').value=state.theta0; el('linkSteer').value=state.linkSteer?'on':'off';
+        el('distanceModel').value=state.distanceModel;
+        el('lrMode').value=state.lrMode?'on':'off'; el('lrGap').value=state.lrGap;
+        el('arcAngle').value=state.arcAngle; el('heatExp').value=state.heatExp; el('zoom').value=state.zoom;
+        updateUI();
+      } catch(e){ alert('Не удалось загрузить настройки'); }
+    };
+    reader.readAsText(file);
+  });
+  // инициализация
+  window.addEventListener('load', () => { updateUI(); });
+  </script>
+</body>
+</html>

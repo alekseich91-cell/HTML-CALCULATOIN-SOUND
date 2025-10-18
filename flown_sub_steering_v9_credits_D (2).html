@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Flown Sub Array — Steer v9 (YZ)</title>
+<style>
+  :root { --bg:#0f1115; --fg:#e6e6e6; --mut:#9aa3ad; --card:#171a21; --line:#2a2f3a; --accent:#79b8ff; }
+  html,body{height:100%}
+  body{margin:0;background:#0e1118;color:var(--fg);font:14px/1.5 system-ui,Segoe UI,Roboto,Inter,Arial;display:grid;grid-template-columns:360px 1fr;min-height:0}
+  aside{background:#0f131b;border-right:1px solid var(--line);padding:14px 14px 10px;min-width:320px;overflow:auto}
+  main{display:grid;grid-template-rows:auto 1fr;min-width:0;min-height:0}
+  header{padding:10px 14px;border-bottom:1px solid var(--line);background:#111319}
+  h1{font-size:18px;margin:0 0 6px}
+  .mut{color:var(--mut);font-size:12px}
+  label{display:block;margin:10px 0 4px;color:var(--mut)}
+  input[type="number"],input[type="range"],select{width:100%;accent-color:var(--accent)}
+  input[type="number"]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#0f1320;color:var(--fg)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .out{max-height:260px;overflow:auto;background:#0b0e15;border-radius:8px;border:1px dashed var(--line);padding:8px}
+  table{border-collapse:collapse;width:100%} th,td{padding:4px 6px;border-bottom:1px solid #20242e} th{color:#c2cbd6}
+  #wrap{position:relative;min-height:0}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .legend{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .legendbar{height:12px;border-radius:2px;flex:1;background:linear-gradient(90deg,#000,#113,#335,#58a,#9de,#fff)}
+  .tiny{font-size:11px;color:#9aa3ad}
+  .credit{margin-top:4px;color:#b9d4ff}
+</style>
+</head>
+<body>
+<aside>
+  <h2 style="font-size:16px;margin:0 0 8px">Параметры (Steer)</h2>
+  <label>Частота, Hz</label>
+  <input id="f" type="number" min="20" max="200" step="1" value="80">
+
+  <div class="row">
+    <div><label>N — кабинетов</label><input id="n" type="number" min="1" max="64" step="1" value="8"></div>
+    <div><label>D — шаг между акустическими центрами, м</label><input id="d" type="number" min="0.2" max="3" step="0.01" value="0.8" title="D — расстояние между акустическими центрами соседних сабвуферов"></div>
+  </div>
+
+  <div class="row">
+    <div><label>Высота центра, м</label><input id="zh" type="number" min="0" max="20" step="0.1" value="5"></div>
+    <div><label>Угол θ, ° (вниз +)</label><input id="theta" type="number" min="-60" max="60" step="0.5" value="30"></div>
+  </div>
+
+  <div class="row">
+    <div><label>Высота слушателя, м</label><input id="hear" type="number" min="0" max="3" step="0.05" value="1.8"></div>
+    <div><label>Качество</label>
+      <select id="quality">
+        <option value="fast">Быстро</option>
+        <option value="med" selected>Средне</option>
+        <option value="high">Высоко</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><label>Контраст DR, dB</label><input id="dr" type="number" min="20" max="80" step="1" value="30"></div>
+    <div><label>Гамма</label><input id="gamma" type="number" min="0.6" max="2.5" step="0.1" value="2.0"></div>
+  </div>
+
+  <div class="row">
+    <div><label>Высота (Y), м</label><input id="Yspan" type="number" min="10" max="40" step="1" value="16"></div>
+    <div><label>Глубина (Z), м</label><input id="Zspan" type="number" min="20" max="120" step="1" value="40"></div>
+  </div>
+
+  <div class="tiny">Плоскость <b>YZ</b>. Массив смещён к сцене на −Zspan/3. Частота не меняет задержки, только диаграмму. θ&gt;0 наклоняет луч <b>вниз</b>. <b>D</b> — расстояние между акустическими центрами соседних сабвуферов.</div>
+
+  <label style="margin-top:12px">Таблица каналов</label>
+  <div class="out" id="tbl"></div>
+  <div class="legend"><div class="legendbar"></div><span class="tiny">0…−DR dB от пика</span></div>
+</aside>
+
+<main>
+  <header>
+    <h1>Подвесной саб‑массив — Steer (YZ)</h1>
+    <div class="mut">HiDPI, адаптивная сетка. Белая — пол, пунктир — уши слушателя. Серая вертикаль — Z=0. Стрелка «к залу» и вектор наклона.</div>
+    <div class="credit">Made Lunia =) | Сделано Лунтиком и нейросетью | по всем вопросам: <b>@lunevilia</b></div>
+  </header>
+  <div id="wrap">
+    <canvas id="heat"></canvas>
+    <canvas id="ovr"></canvas>
+  </div>
+</main>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const heat=$("heat"), ovr=$("ovr");
+  const hctx=heat.getContext("2d"), octx=ovr.getContext("2d");
+  const DPR=Math.max(1,window.devicePixelRatio||1);
+  const C=343;
+
+  // Inputs
+  const fEl=$("f"), nEl=$("n"), dEl=$("d"), zhEl=$("zh"), thetaEl=$("theta");
+  const hearEl=$("hear"), qEl=$("quality"), YspanEl=$("Yspan"), ZspanEl=$("Zspan"), drEl=$("dr"), gammaEl=$("gamma");
+
+  function clamp(a,x,y){return Math.max(x,Math.min(y,a));}
+  function rad(a){return a*Math.PI/180;}
+
+  function sizeCanvases(){
+    const r=document.getElementById("wrap").getBoundingClientRect();
+    const W=Math.max(400,r.width), H=Math.max(320,r.height);
+    [heat,ovr].forEach(cv=>{
+      cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+      cv.style.width=W+"px"; cv.style.height=H+"px";
+      cv.getContext("2d").setTransform(DPR,0,0,DPR,0,0);
+    });
+  }
+
+  function geometry(N,d,zh,Zarr){
+    const pts=[];
+    for(let i=0;i<N;i++){
+      const y= zh + (i-(N-1)/2)*d; // i=0 — нижний
+      pts.push([y,Zarr]);
+    }
+    return pts;
+  }
+
+  function delaysSteer(N,d,theta){
+    // θ>0 (вниз): задержка увеличивается кверху
+    const arr=new Array(N).fill(0);
+    const dprog=d*Math.sin(theta);
+    for(let i=0;i<N;i++){ arr[i]=(i*dprog)/C; }
+    const minv=Math.min(...arr);
+    if(minv<0){ for(let i=0;i<N;i++) arr[i]-=minv; }
+    return arr;
+  }
+
+  function render(){
+    sizeCanvases();
+    const N=clamp(parseInt(nEl.value||"8"),1,64);
+    const f=parseFloat(fEl.value||"80");
+    const d=parseFloat(dEl.value||"0.8");
+    const zh=parseFloat(zhEl.value||"5");
+    const theta=clamp(parseFloat(thetaEl.value||"30"),-60,60);
+    const hear=parseFloat(hearEl.value||"1.8");
+    const Yspan=clamp(parseFloat(YspanEl.value||"16"),8,40);
+    const Zspan=clamp(parseFloat(ZspanEl.value||"40"),20,160);
+    const quality=qEl.value;
+    const DR=clamp(parseFloat(drEl.value||"30"),20,80);
+    const GAM=clamp(parseFloat(gammaEl.value||"2.0"),0.6,2.5);
+
+    let gx=560, gy=280;
+    if(quality==="fast"){ gx=360; gy=180; }
+    if(quality==="high"){ gx=900; gy=450; }
+
+    const Y0=0, Y1=Yspan;
+    const Z0=-Zspan/2, Z1=+Zspan/2;
+    const Zarr = Z0 + (Z1 - Z0)/3; // -Zspan/3
+
+    function pxZ(z){ return ( (z - Z0)/(Z1 - Z0) ) * heat.width / DPR; }
+    function pxY(y){ return ovr.height/DPR - ( (y - Y0)/(Y1 - Y0) ) * ovr.height / DPR; }
+
+    const pos = geometry(N,d,zh,Zarr);
+    const delays = delaysSteer(N,d,rad(theta));
+
+    const img=hctx.createImageData(gx,gy);
+    const data=img.data;
+    const k=2*Math.PI*f/C, omega=2*Math.PI*f;
+    const mag=new Float32Array(gx*gy); let maxLin=0;
+
+    function Yat(j){ return Y1 - (j/gy)*(Y1 - Y0); }
+    function Zat(i){ return Z0 + (i/gx)*(Z1 - Z0); }
+
+    for(let j=0;j<gy;j++){
+      const y=Yat(j);
+      for(let i=0;i<gx;i++){
+        const z=Zat(i);
+        let re=0,im=0;
+        for(let s=0;s<N;s++){
+          const dy=y - pos[s][0];
+          const dz=z - pos[s][1];
+          const r=Math.hypot(dy,dz)+1e-6;
+          const phase = k*r - omega*delays[s];
+          const att = 1/Math.pow(r,0.9);
+          re += att*Math.cos(phase);
+          im += att*Math.sin(phase);
+        }
+        const m=Math.hypot(re,im);
+        mag[j*gx+i]=m; if(m>maxLin) maxLin=m;
+      }
+    }
+
+    const ref=maxLin||1e-9, minDb=-DR;
+    function color(db){
+      let t=Math.max(0,Math.min(1,(db - minDb)/DR));
+      t=Math.pow(t,1/GAM);
+      let r=0,g=0,b=0;
+      if(t<0.25){const u=t/0.25; r=0; g=0; b=40+u*(120-40);}
+      else if(t<0.5){const u=(t-0.25)/0.25; r=0; g=40*u; b=120+u*(200-120);}
+      else if(t<0.75){const u=(t-0.5)/0.25; r=50*u; g=40+u*(180-40); b=200+u*(240-200);}
+      else{const u=(t-0.75)/0.25; r=50+u*(255-50); g=180+u*(255-180); b=240+u*(255-240);}
+      return [r,g,b,255];
+    }
+    for(let j=0;j<gy;j++){
+      for(let i=0;i<gx;i++){
+        const db=20*Math.log10(mag[j*gx+i]/ref + 1e-12);
+        const [r,g,b,a]=color(db);
+        const idx=(j*gx+i)*4; data[idx]=r; data[idx+1]=g; data[idx+2]=b; data[idx+3]=a;
+      }
+    }
+    hctx.clearRect(0,0,heat.width,heat.height);
+    hctx.imageSmoothingEnabled=false;
+    const tmp=document.createElement("canvas"); tmp.width=gx; tmp.height=gy;
+    tmp.getContext("2d").putImageData(img,0,0);
+    hctx.drawImage(tmp,0,0,heat.width/DPR,heat.height/DPR);
+
+    // Overlay
+    octx.clearRect(0,0,ovr.width,ovr.height);
+    // floor
+    octx.strokeStyle="#ddd"; octx.setLineDash([]);
+    octx.beginPath(); octx.moveTo(0,pxY(0)); octx.lineTo(ovr.width/DPR,pxY(0)); octx.stroke();
+    octx.fillStyle="#ddd"; octx.fillText("пол (Y=0)",6,pxY(0)-4);
+    // listener
+    octx.setLineDash([6,6]); octx.strokeStyle="#ddd";
+    octx.beginPath(); octx.moveTo(0,pxY(hear)); octx.lineTo(ovr.width/DPR,pxY(hear)); octx.stroke();
+    octx.setLineDash([]);
+    octx.fillText(`слушатель ~${hear.toFixed(2)} м`,6,pxY(hear)-4);
+    // Z=0
+    octx.strokeStyle="rgba(255,255,255,0.25)";
+    octx.beginPath(); octx.moveTo(pxZ(0),0); octx.lineTo(pxZ(0),ovr.height/DPR); octx.stroke();
+    octx.fillStyle="rgba(255,255,255,0.7)"; octx.fillText("Z=0 (сцена)", pxZ(0)+6, 14);
+
+    // array
+    const X=pxZ(Zarr);
+    octx.fillStyle="#ffcc00"; octx.strokeStyle="rgba(255,204,0,0.35)";
+    for(let s=0;s<N;s++){
+      const Y=pxY(pos[s][0]);
+      octx.beginPath(); octx.arc(X,Y,3,0,2*Math.PI); octx.fill();
+      if(s>0){ const Yp=pxY(pos[s-1][0]); octx.beginPath(); octx.moveTo(X,Yp); octx.lineTo(X,Y); octx.stroke(); }
+    }
+
+    // arrows
+    const arrLen=Math.min(ovr.width/DPR*0.08,70);
+    octx.strokeStyle="#e6e6e6";
+    octx.beginPath(); octx.moveTo(X,pxY(zh)); octx.lineTo(X+arrLen,pxY(zh)); octx.stroke();
+    octx.fillStyle="#e6e6e6"; octx.beginPath();
+    octx.moveTo(X+arrLen,pxY(zh)); octx.lineTo(X+arrLen-8,pxY(zh)-5); octx.lineTo(X+arrLen-8,pxY(zh)+5); octx.closePath(); octx.fill();
+    octx.fillText("к залу (+Z)", X+arrLen+6, pxY(zh)+4);
+
+    const Lpx=Math.min(ovr.height/DPR*0.35,220);
+    const ang=rad(theta);
+    const hx=X + Lpx*Math.cos(ang);
+    const hy=pxY(zh) + Lpx*Math.sin(ang);
+    octx.strokeStyle="#8fd1ff"; octx.lineWidth=2;
+    octx.beginPath(); octx.moveTo(X,pxY(zh)); octx.lineTo(hx,hy); octx.stroke();
+    octx.fillStyle="#8fd1ff"; octx.beginPath();
+    octx.moveTo(hx,hy);
+    octx.lineTo(hx-10*Math.cos(ang)+5*Math.cos(ang+Math.PI/2), hy-10*Math.sin(ang)+5*Math.sin(ang+Math.PI/2));
+    octx.lineTo(hx-10*Math.cos(ang)+5*Math.cos(ang-Math.PI/2), hy-10*Math.sin(ang)+5*Math.sin(ang-Math.PI/2));
+    octx.closePath(); octx.fill();
+
+    // table
+    let html="<table><tr><th>CH</th><th style='text-align:right'>Delay, ms</th></tr>";
+    const minv=Math.min(...delays);
+    for(let i=0;i<N;i++){
+      html+=`<tr><td>CH${String(i+1).padStart(2,"0")}</td><td style="text-align:right">${((delays[i]-minv)*1000).toFixed(3)}</td></tr>`;
+    }
+    html+="</table>"; $("tbl").innerHTML=html;
+  }
+
+  [fEl,nEl,dEl,zhEl,thetaEl,hearEl,qEl,YspanEl,ZspanEl,drEl,gammaEl].forEach(el=>el.addEventListener("input",render));
+  new ResizeObserver(render).observe(document.getElementById("wrap"));
+  render();
+})();
+</script>
+</body>
+</html>
