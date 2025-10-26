@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Impedance Builder — v9 (авто токоограничение от БП/шин)</title>
+<style>
+:root{
+  --bg:#0f1115;--panel:#151923;--card:#1a2030;--ink:#e8edf5;--muted:#93a0b4;
+  --accent:#5eead4;--danger:#f87171;--ok:#a7f3d0;
+  --wire:#a3bffa;--wireSel:#60a5fa;
+  --pplus:#ffb4b4;--pminus:#b4d0ff;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:#0f1115;color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Inter,Roboto,Arial}
+/* Header */
+header{height:80px;background:#141a26;border-bottom:1px solid #1f2637;display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:10px 12px;position:fixed;inset:0 0 auto 0;z-index:5}
+.brand{font-weight:800}
+.badgeTop{color:var(--ok);font-weight:700}
+.muted{color:var(--muted)}
+button{background:var(--card);border:1px solid #2a3246;color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+button:hover{background:#21283a}
+/* Layout */
+#wrap{position:fixed;inset:80px 0 0 0;display:grid;grid-template-columns:340px 1fr}
+aside{background:var(--panel);border-right:1px solid #1f2637;padding:12px;overflow:auto}
+h3{margin:8px 0 10px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
+.card{background:var(--card);border:1px solid #28324a;border-radius:12px;padding:10px;margin:0 0 8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid #2b3650;background:#0d1324;color:var(--muted)}
+.list{display:grid;gap:8px}
+/* Stage */
+#stage{position:relative;background:
+ linear-gradient(#121826 1px,transparent 1px) 0 0/100% 24px,
+ linear-gradient(90deg,#121826 1px,transparent 1px) 0 0/24px 100%, #0b0f18;}
+svg#wires{position:absolute;inset:0;pointer-events:auto;z-index:0;width:100%;height:100%}
+.node{position:absolute;min-width:270px;background:var(--card);border:1px solid #2a3246;border-radius:14px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.28);user-select:none;z-index:1}
+.node .title{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.node .title input{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed #334;outline:none;color:var(--ink);font-weight:700}
+.node .body{display:grid;gap:8px}
+/* compact numeric inputs */
+.inRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=number]{background:#0e1320;color:var(--ink);border:1px solid #2a3246;border-radius:8px;padding:6px 8px}
+input.w72{width:72px} input.w96{width:96px}
+label.small{font-size:12px;color:var(--muted)}
+/* Ports */
+.ports{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:6px}
+.sideL,.sideR{display:flex;align-items:center;gap:6px}
+.sideL{justify-content:flex-start} .sideR{justify-content:flex-end}
+.port{width:18px;height:18px;border-radius:50%;border:2px solid #242b3e;background:#192036;position:relative;cursor:pointer;outline:2px solid transparent}
+.port.plus{background:#32191a;border-color:#5a2a2e}
+.port.minus{background:#172236;border-color:#2b3e5a}
+.port.plus::after{content:"+";position:absolute;inset:0;color:var(--pplus);font-weight:900;font-size:12px;display:grid;place-items:center}
+.port.minus::after{content:"−";position:absolute;inset:0;color:var(--pminus);font-weight:900;font-size:12px;display:grid;place-items:center}
+.port.sel{outline-color:var(--accent)}
+.kv{font-size:12px;color:var(--muted)}
+/* Wires */
+.wire{stroke:var(--wire);stroke-width:3;opacity:.95;fill:none;filter:drop-shadow(0 0 6px rgba(96,165,250,.35));pointer-events:stroke}
+.wire.sel{stroke:var(--wireSel);stroke-width:5}
+.wire.hit{stroke-width:10;stroke-opacity:0;pointer-events:stroke}
+/* Log window */
+#logWrap{position:fixed;right:10px;bottom:10px;width:380px;max-height:42vh;background:#0b1222;border:1px solid #223049;border-radius:10px;display:flex;flex-direction:column;z-index:10}
+#logHead{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #223049;color:#cbd5e1;font-weight:700}
+#logBody{padding:6px 8px;overflow:auto;font-family:ui-monospace,Consolas,monaco,monospace;font-size:12px;color:#cbd5e1}
+.log-info{color:#a7f3d0} .log-warn{color:#fde68a} .log-error{color:#fca5a5}
+/* status colors */
+.val-ok{color:var(--ok)} .val-bad{color:var(--danger)}
+#Z{font-weight:800;color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Impedance Builder</div>
+  <div class="badgeTop">Рекомендуемая мощность усилителя: <span id="recPower">—</span></div>
+  <div class="badgeTop">Z нагрузки: <span id="Z">—</span></div>
+  <button id="btnAmp">➕ Усилитель</button>
+  <button id="btnSpk">➕ Динамик</button>
+  <button id="btnClear">♻️ Очистить</button>
+</header>
+
+<div id="wrap">
+  <aside>
+    <h3>Как соединять</h3>
+    <div class="card">
+      <div class="row"><div class="muted">Клик по пину → подсветится. Второй клик по другому пину — создаётся провод.</div></div>
+      <div class="row"><div class="muted">Удаление: двойной клик по пину — снимет все провода с него; двойной/правый клик по линии — удалит линию.</div></div>
+      <div class="row"><div class="muted"><b>+</b> всегда слева, <b>−</b> справа. Изолированные динамики игнорируются.</div></div>
+    </div>
+    <h3>Элементы</h3>
+    <div id="list" class="list"></div>
+    <h3>Примечание</h3>
+    <div class="card muted">Дефолт: динамик <b>KARA LF</b> — 8 Ω, 450 W AES; усилитель <b>LA8</b> — 1800 W/4Ω (даёт V<sub>max</sub>), БП ~3.6 кВт. Мощность: P=min(V<sub>max</sub>²/Z, P<sub>psu</sub>, (P<sub>psu</sub>/V<sub>max</sub>)²·Z).</div>
+  </aside>
+
+  <div id="stage">
+    <svg id="wires"></svg>
+  </div>
+</div>
+
+<!-- Log -->
+<div id="logWrap">
+  <div id="logHead">
+    <span>Лог</span>
+    <div>
+      <button id="logClear">Очистить</button>
+      <button id="logToggle">Скрыть</button>
+    </div>
+  </div>
+  <div id="logBody"></div>
+</div>
+
+<script>
+/* ===== ЛОГ ===== */
+const logBody=document.getElementById('logBody');
+document.getElementById('logClear').onclick=()=>{logBody.innerHTML='';};
+document.getElementById('logToggle').onclick=()=>{logBody.style.display=(logBody.style.display==='none'?'block':'none');};
+function log(line, cls='log-info'){const p=document.createElement('div');p.className=cls;p.textContent='['+new Date().toLocaleTimeString()+'] '+line;logBody.appendChild(p);logBody.scrollTop=logBody.scrollHeight;}
+const logInfo=m=>log(m,'log-info'), logWarn=m=>log(m,'log-warn'), logError=m=>log(m,'log-error');
+
+/* ===== СТЕЙТ ===== */
+const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
+let uid=1; const nextId=p=>`${p}${uid++}`;
+const stage=$("#stage"), svg=$("#wires"), list=$("#list"), recPowerEl=$("#recPower"), Zel=$("#Z");
+const st={ amp:null, spk:[], wires:[], src:{pos:null,neg:null} };
+
+/* ===== СОЗДАНИЕ ЭЛЕМЕНТОВ ===== */
+function addAmp(x=110,y=160){
+  if(st.amp){ logWarn('Усилитель уже добавлен'); return; }
+  const id=nextId('amp_'), plus=nextId('p_'), minus=nextId('p_');
+  const amp={id,x,y,name:'LA8 (канал)',plus,minus, Pc:1800, Zref:4, Ppsu:3600};
+  st.amp=amp; renderAmp(amp); refreshList(); setSource(plus,minus); logInfo('Добавлен усилитель '+id); recalc();
+}
+function addSpk(x=520,y=180){
+  const id=nextId('spk_'), plus=nextId('p_'), minus=nextId('p_');
+  const sp={id,x,y,name:`Speaker ${st.spk.length+1}`,R:8,Prated:450,plus,minus};
+  st.spk.push(sp); renderSpk(sp); refreshList(); logInfo('Добавлен динамик '+id); recalc();
+}
+
+/* ===== РЕНДЕР ===== */
+function renderAmp(a){
+  const n=document.createElement('div'); n.className='node'; n.dataset.kind='amp'; n.dataset.id=a.id;
+  n.style.left=a.x+'px'; n.style.top=a.y+'px';
+  n.innerHTML=`
+    <div class="title"><input value="${a.name}"/><span class="badge">усилитель</span>
+      <button class="del">🗑</button></div>
+    <div class="body">
+      <div class="inRow">
+        <label class="small">Pкан, W</label><input class="w96 aPc" type="number" min="1" value="${a.Pc}"/>
+        <label class="small">@Ω</label><input class="w72 aZref" type="number" step="0.1" min="0.1" value="${a.Zref}"/>
+        <label class="small">БП, W</label><input class="w96 aPpsu" type="number" min="1" value="${a.Ppsu}"/>
+      </div>
+      <div class="inRow">
+        <span class="small">I<sub>out</sub>: <b id="ampI" class="val-ok">0 A</b></span>
+        <span class="small">P<sub>real</sub>: <b id="ampP" class="val-ok">0 W</b></span>
+      </div>
+      <div class="ports">
+        <div class="sideL"><div class="port plus" data-port="${a.plus}"></div></div>
+        <div class="kv">CH-1</div>
+        <div class="sideR"><div class="port minus" data-port="${a.minus}"></div></div>
+      </div>
+    </div>`;
+  stage.appendChild(n); makeDrag(n);
+  n.querySelector('.del').onclick=()=>{ removeNode(a.id); st.amp=null; st.src.pos=null; st.src.neg=null; logWarn('Усилитель удалён'); recalc(); };
+  n.querySelector('.title input').oninput=e=>{ a.name=e.target.value; refreshList(); };
+  n.querySelector('.aPc').oninput=e=>{ a.Pc=Math.max(1,parseFloat(e.target.value||1)); recalc(); };
+  n.querySelector('.aZref').oninput=e=>{ a.Zref=Math.max(0.1,parseFloat(e.target.value||4)); recalc(); };
+  n.querySelector('.aPpsu').oninput=e=>{ a.Ppsu=Math.max(1,parseFloat(e.target.value||1)); recalc(); };
+}
+function renderSpk(s){
+  const n=document.createElement('div'); n.className='node'; n.dataset.kind='spk'; n.dataset.id=s.id;
+  n.style.left=s.x+'px'; n.style.top=s.y+'px';
+  n.innerHTML=`
+    <div class="title"><input value="${s.name}"/><span class="badge">динамик</span>
+      <button class="del">🗑</button></div>
+    <div class="body">
+      <div class="inRow">
+        <label class="small">R, Ω</label><input class="w72 rVal" type="number" step="0.1" min="0" value="${s.R}"/>
+        <label class="small">P AES, W</label><input class="w96 pVal" type="number" step="1" min="0" value="${s.Prated}"/>
+      </div>
+      <div class="ports">
+        <div class="sideL"><div class="port plus" data-port="${s.plus}"></div></div>
+        <div class="kv">R/P</div>
+        <div class="sideR"><div class="port minus" data-port="${s.minus}"></div></div>
+      </div>
+    </div>`;
+  stage.appendChild(n); makeDrag(n);
+  n.querySelector('.del').onclick=()=>{ removeNode(s.id); recalc(); };
+  n.querySelector('.rVal').oninput=e=>{ s.R=Math.max(0,parseFloat(e.target.value||0)); recalc(); };
+  n.querySelector('.pVal').oninput=e=>{ s.Prated=Math.max(0,parseFloat(e.target.value||0)); recalc(); };
+  n.querySelector('.title input').oninput=e=>{ s.name=e.target.value; refreshList(); };
+}
+
+/* ===== СОЕДИНЕНИЕ/УДАЛЕНИЕ ПРОВОДОВ ===== */
+let selPort=null;
+stage.addEventListener('click',(e)=>{
+  const t=e.target.closest('.port'); if(!t) return;
+  const pid=t.dataset.port;
+  if(!selPort){ selPort=pid; $$('.port').forEach(p=>p.classList.remove('sel')); t.classList.add('sel'); logInfo('Выбран пин '+pid); }
+  else if(selPort===pid){ t.classList.remove('sel'); selPort=null; logInfo('Снята выделенная клемма'); }
+  else{ const a=selPort,b=pid; st.wires.push({a,b,id:nextId('w_')}); selPort=null; $$('.port').forEach(p=>p.classList.remove('sel')); redraw(); logInfo(`Создан провод ${a} ↔ ${b}`); recalc(); }
+});
+stage.addEventListener('dblclick',(e)=>{
+  const t=e.target.closest('.port'); if(!t) return;
+  const pid=t.dataset.port; const before=st.wires.length;
+  st.wires = st.wires.filter(w=>!(w.a===pid||w.b===pid));
+  const removed=before-st.wires.length; if(removed>0){ logWarn(`С пина ${pid} снято проводов: ${removed}`); redraw(); recalc(); }
+});
+svg.addEventListener('dblclick',(e)=>{ if(e.target.tagName.toLowerCase()!=='path') return; removeWire(e.target.dataset.id); });
+svg.addEventListener('contextmenu',(e)=>{ if(e.target.tagName.toLowerCase()!=='path') return; e.preventDefault(); removeWire(e.target.dataset.id); });
+function removeWire(id){ st.wires=st.wires.filter(x=>x.id!==id); redraw(); logWarn('Удалён провод '+id); recalc(); }
+
+/* ===== РИСОВАНИЕ ПРОВОДОВ ===== */
+function centerOfPort(pid){
+  const p=stage.querySelector(`.port[data-port="${pid}"]`); if(!p){ return {x:0,y:0}; }
+  const r=p.getBoundingClientRect(), rs=stage.getBoundingClientRect();
+  return {x:r.left-rs.left+r.width/2, y:r.top-rs.top+r.height/2};
+}
+function cubic(A,B){ return `M ${A.x} ${A.y} C ${A.x+40} ${A.y} ${B.x-40} ${B.y} ${B.x} ${B.y}`; }
+function drawWire(w){
+  const A=centerOfPort(w.a), B=centerOfPort(w.b);
+  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d',cubic(A,B)); path.setAttribute('class','wire'); path.dataset.id=w.id;
+  const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+  hit.setAttribute('d',cubic(A,B)); hit.setAttribute('class','wire hit'); hit.dataset.id=w.id;
+  svg.appendChild(hit); svg.appendChild(path);
+}
+function redraw(){ svg.setAttribute('width', stage.clientWidth); svg.setAttribute('height', stage.clientHeight); svg.innerHTML=''; for(const w of st.wires){ drawWire(w); } }
+window.addEventListener('resize',()=>{ redraw(); });
+
+/* ===== ПЕРЕТАСКИВАНИЕ НОД ===== */
+function makeDrag(node){
+  let ox=0,oy=0,drag=false;
+  node.addEventListener('mousedown',e=>{
+    if(e.target.closest('input,button,.port')) return;
+    drag=true; const r=node.getBoundingClientRect(); ox=e.clientX-r.left; oy=e.clientY-r.top; node.style.transition='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag) return; const rs=stage.getBoundingClientRect();
+    let x=e.clientX-rs.left-ox, y=e.clientY-rs.top-oy;
+    x=Math.max(8,Math.min(rs.width-220,x)); y=Math.max(8,Math.min(rs.height-100,y));
+    node.style.left=x+'px'; node.style.top=y+'px';
+    const id=node.dataset.id, k=node.dataset.kind;
+    if(k==='amp'){ st.amp.x=x; st.amp.y=y; }
+    if(k==='spk'){ const o=st.spk.find(v=>v.id===id); o.x=x;o.y=y; }
+    redraw();
+  });
+  document.addEventListener('mouseup',()=>{ drag=false; node.style.transition=''; });
+}
+
+/* ===== Панель и удаление нод ===== */
+function removeNode(id){
+  if(st.amp && st.amp.id===id){
+    const ports=[st.amp.plus,st.amp.minus];
+    st.wires=st.wires.filter(w=>!ports.includes(w.a)&&!ports.includes(w.b));
+    $$('.node').forEach(n=>{ if(n.dataset.id===id) n.remove(); });
+    st.amp=null;
+  }else if(st.spk.some(x=>x.id===id)){
+    const sp=st.spk.find(x=>x.id===id);
+    st.wires=st.wires.filter(w=>![sp.plus,sp.minus].includes(w.a)&&![sp.plus,sp.minus].includes(w.b));
+    st.spk=st.spk.filter(x=>x.id!==id);
+    $$('.node').forEach(n=>{ if(n.dataset.id===id) n.remove(); });
+  }
+  refreshList(); redraw(); recalc();
+}
+function refreshList(){
+  list.innerHTML='';
+  if(st.amp){
+    const a=st.amp, c=document.createElement('div'); c.className='card';
+    c.innerHTML=`<div class="row"><b>${a.name}</b><button class="rm">Удалить</button></div>
+      <div class="muted">Канал: ${a.Pc} W @ ${a.Zref} Ω; БП: ${a.Ppsu} W</div>`;
+    c.querySelector('.rm').onclick=()=>{ removeNode(a.id); };
+    list.appendChild(c);
+  }
+  for(const s of st.spk){
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML=`<div class="row"><b>${s.name}</b><button class="rm">Удалить</button></div>
+      <div class="muted">R = ${s.R.toFixed(2)} Ω, P = ${s.Prated.toFixed(0)} W AES</div>`;
+    c.querySelector('.rm').onclick=()=>{ removeNode(s.id); };
+    list.appendChild(c);
+  }
+}
+
+/* ===== НЕТЫ/ИСТОЧНИК/РАСЧЁТ ===== */
+function netsMap(){
+  const ports=[]; if(st.amp){ ports.push(st.amp.plus,st.amp.minus); } st.spk.forEach(s=>ports.push(s.plus,s.minus));
+  const parent={}; ports.forEach(p=>parent[p]=p);
+  const find=a=>parent[a]===a?a:(parent[a]=find(parent[a])); const uni=(a,b)=>{a=find(a);b=find(b); if(a!==b) parent[b]=a;};
+  st.wires.forEach(w=>uni(w.a,w.b));
+  const map={}, out={}; let k=1; for(const p of ports){ const r=find(p); if(!map[r]) map[r]=`NET_${k++}`; out[p]=map[r]; } return out;
+}
+function setSource(plusPort, minusPort){
+  const m=netsMap(); st.src.pos=m[plusPort]; st.src.neg=m[minusPort];
+  logInfo(`Источник: ${st.src.pos} ( + ) / ${st.src.neg} ( − )`);
+}
+function calcZandRecommend(){
+  const m=netsMap();
+  if(!st.amp){ Zel.textContent='—'; recPowerEl.textContent='—'; updateAmpReadouts(null); return; }
+  if(!st.src.pos||!st.src.neg){ setSource(st.amp.plus,st.amp.minus); }
+  const Rs=[]; for(const s of st.spk){ const a=m[s.plus], b=m[s.minus]; if(a&&b) Rs.push({a,b,R:Math.max(1e-7,s.R), Pr:s.Prated, ref:s}); }
+  if(Rs.length===0){ Zel.textContent='∞ Ω'; recPowerEl.textContent='—'; updateAmpReadouts(null); return; }
+  // Узловой анализ только подключённой части
+  const nets=Array.from(new Set(Object.values(m)));
+  const adj={}; Rs.forEach(r=>{ (adj[r.a]??=[]).push(r.b); (adj[r.b]??=[]).push(r.a); });
+  const seen=new Set([st.src.pos]); const q=[st.src.pos];
+  while(q.length){ const u=q.shift(); for(const v of (adj[u]||[])) if(!seen.has(v)){ seen.add(v); q.push(v);} }
+  if(!seen.has(st.src.neg)){ Zel.textContent='∞ Ω'; recPowerEl.textContent='—'; updateAmpReadouts(null); return; }
+  const unknown = nets.filter(n=>n!==st.src.pos && n!==st.src.neg && seen.has(n));
+  const idx=new Map(); unknown.forEach((n,i)=>idx.set(n,i));
+  const n=unknown.length, G=Array.from({length:n},()=>Array(n).fill(0)), b=Array(n).fill(0);
+  function addCond(a,bn,g){
+    const ia=idx.get(a), ib=idx.get(bn);
+    const ina = (a===st.src.pos||a===st.src.neg||seen.has(a));
+    const inb = (bn===st.src.pos||bn===st.src.neg||seen.has(bn));
+    if(!ina || !inb) return;
+    if(ia!==undefined){ G[ia][ia]+=g; if(ib!==undefined) G[ia][ib]-=g; else b[ia]+=g*((bn===st.src.pos)?1:0); }
+    if(ib!==undefined){ G[ib][ib]+=g; if(ia!==undefined) G[ib][ia]-=g; else b[ib]+=g*((a===st.src.pos)?1:0); }
+  }
+  Rs.forEach(r=>addCond(r.a,r.b,1/Math.max(1e-12,r.R)));
+  const V=solve(G,b); if(V===null){ Zel.textContent='—'; recPowerEl.textContent='—'; updateAmpReadouts(null); return; }
+  let I=0; let recSum=0;
+  for(const r of Rs){
+    const Va = r.a===st.src.pos ? 1 : r.a===st.src.neg ? 0 : V[idx.get(r.a)];
+    const Vb = r.b===st.src.pos ? 1 : r.b===st.src.neg ? 0 : V[idx.get(r.b)];
+    if(r.a===st.src.pos) I += (1 - Vb)/r.R;
+    if(r.b===st.src.pos) I += (1 - Va)/r.R;
+    if(Math.abs(Va - Vb) > 1e-9) recSum += r.Pr;
+  }
+  const Z = (Math.abs(I)<1e-12)?Infinity:(1/I);
+  Zel.textContent = isFinite(Z)? `${Z.toFixed(3)} Ω` : '∞ Ω';
+  const rec = 1.5 * recSum; recPowerEl.textContent = isFinite(rec)? `${rec.toFixed(0)} W` : '—';
+  updateAmpReadouts(Z);
+}
+
+/* ===== Усилитель: авто токоограничение из Pc/Zref и Ppsu ===== */
+function updateAmpReadouts(Z){
+  const amp=st.amp; if(!amp){ return; }
+  const Iel=$("#ampI"), Pel=$("#ampP");
+  if(!Iel||!Pel){ return; }
+  if(!isFinite(Z)||Z<=0){ Iel.textContent='0 A'; Iel.className='val-ok'; Pel.textContent='0 W'; Pel.className='val-ok'; return; }
+  const Vmax = Math.sqrt(amp.Pc * amp.Zref); // по рейтингу канала
+  const P_v = Vmax*Vmax / Z;                 // ограничение по напряжению
+  const Imax_psu = amp.Ppsu / Vmax;          // токовый предел, вытекающий из мощности БП
+  const P_i = Imax_psu*Imax_psu * Z;         // ограничение по току
+  const P_real = Math.min(amp.Ppsu, P_v, P_i);
+  const Iout = Math.sqrt(P_real / Z);
+  Iel.textContent = `${Iout.toFixed(2)} A`;
+  Pel.textContent = `${P_real.toFixed(0)} W`;
+  Pel.className = (P_real >= 0.9*amp.Ppsu) ? 'val-bad' : 'val-ok';
+}
+
+/* ===== Решатель ===== */
+function solve(A,b){
+  const n=A.length; if(!n) return [];
+  A=A.map(r=>r.slice()); b=b.slice();
+  for(let i=0;i<n;i++){
+    let piv=i; for(let r=i+1;r<n;r++) if(Math.abs(A[r][i])>Math.abs(A[piv][i])) piv=r;
+    if(Math.abs(A[piv][i])<1e-12) return null;
+    if(piv!==i){ [A[i],A[piv]]=[A[piv],A[i]]; [b[i],b[piv]]=[b[piv],b[i]]; }
+    const d=A[i][i]; for(let c=i;c<n;c++) A[i][c]/=d; b[i]/=d;
+    for(let r=0;r<n;r++){ if(r===i)continue; const f=A[r][i]; if(Math.abs(f)<1e-12)continue;
+      for(let c=i;c<n;c++) A[r][c]-=f*A[i][c]; b[r]-=f*b[i]; }
+  }
+  return b;
+}
+
+/* ===== Авторасчёт ===== */
+let recalcTimer=null;
+function recalc(){ if(recalcTimer) cancelAnimationFrame(recalcTimer); recalcTimer=requestAnimationFrame(()=>{ redraw(); calcZandRecommend(); }); }
+
+/* ===== КНОПКИ ===== */
+$('#btnAmp').onclick=()=>addAmp(110,140+Math.random()*120);
+$('#btnSpk').onclick=()=>addSpk(520,140+Math.random()*260);
+$('#btnClear').onclick=()=>{ st.amp=null; st.spk.length=0; st.wires.length=0; st.src.pos=null; st.src.neg=null; $$('#stage .node').forEach(n=>n.remove()); svg.innerHTML=''; Zel.textContent='—'; recPowerEl.textContent='—'; logWarn('Сцена очищена'); };
+</script>
+</body>
+</html>
