@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Impedance Builder — v9 (авто токоограничение от БП/шин)</title>
+<title>Impedance Builder — v12 (статус и токоограничение)</title>
 <style>
 :root{
   --bg:#0f1115;--panel:#151923;--card:#1a2030;--ink:#e8edf5;--muted:#93a0b4;
-  --accent:#5eead4;--danger:#f87171;--ok:#a7f3d0;
+  --accent:#5eead4;--danger:#f87171;--warn:#f59e0b;--ok:#a7f3d0;
   --wire:#a3bffa;--wireSel:#60a5fa;
   --pplus:#ffb4b4;--pminus:#b4d0ff;
 }
 *{box-sizing:border-box} html,body{height:100%}
 body{margin:0;background:#0f1115;color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Inter,Roboto,Arial}
 /* Header */
-header{height:80px;background:#141a26;border-bottom:1px solid #1f2637;display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:10px 12px;position:fixed;inset:0 0 auto 0;z-index:5}
+header{height:84px;background:#141a26;border-bottom:1px solid #1f2637;display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:10px;align-items:center;padding:10px 12px;position:fixed;inset:0 0 auto 0;z-index:5}
 .brand{font-weight:800}
 .badgeTop{color:var(--ok);font-weight:700}
 .muted{color:var(--muted)}
 button{background:var(--card);border:1px solid #2a3246;color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
 button:hover{background:#21283a}
 /* Layout */
-#wrap{position:fixed;inset:80px 0 0 0;display:grid;grid-template-columns:340px 1fr}
+#wrap{position:fixed;inset:84px 0 0 0;display:grid;grid-template-columns:370px 1fr}
 aside{background:var(--panel);border-right:1px solid #1f2637;padding:12px;overflow:auto}
 h3{margin:8px 0 10px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
 .card{background:var(--card);border:1px solid #28324a;border-radius:12px;padding:10px;margin:0 0 8px}
@@ -33,14 +33,14 @@ h3{margin:8px 0 10px;font-size:12px;color:var(--muted);text-transform:uppercase;
  linear-gradient(#121826 1px,transparent 1px) 0 0/100% 24px,
  linear-gradient(90deg,#121826 1px,transparent 1px) 0 0/24px 100%, #0b0f18;}
 svg#wires{position:absolute;inset:0;pointer-events:auto;z-index:0;width:100%;height:100%}
-.node{position:absolute;min-width:270px;background:var(--card);border:1px solid #2a3246;border-radius:14px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.28);user-select:none;z-index:1}
+.node{position:absolute;min-width:300px;background:var(--card);border:1px solid #2a3246;border-radius:14px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.28);user-select:none;z-index:1}
 .node .title{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .node .title input{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed #334;outline:none;color:var(--ink);font-weight:700}
 .node .body{display:grid;gap:8px}
 /* compact numeric inputs */
 .inRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 input[type=number]{background:#0e1320;color:var(--ink);border:1px solid #2a3246;border-radius:8px;padding:6px 8px}
-input.w72{width:72px} input.w96{width:96px}
+input.w64{width:64px} input.w72{width:72px} input.w96{width:96px}
 label.small{font-size:12px;color:var(--muted)}
 /* Ports */
 .ports{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:6px}
@@ -58,13 +58,14 @@ label.small{font-size:12px;color:var(--muted)}
 .wire.sel{stroke:var(--wireSel);stroke-width:5}
 .wire.hit{stroke-width:10;stroke-opacity:0;pointer-events:stroke}
 /* Log window */
-#logWrap{position:fixed;right:10px;bottom:10px;width:380px;max-height:42vh;background:#0b1222;border:1px solid #223049;border-radius:10px;display:flex;flex-direction:column;z-index:10}
+#logWrap{position:fixed;right:10px;bottom:10px;width:420px;max-height:42vh;background:#0b1222;border:1px solid #223049;border-radius:10px;display:flex;flex-direction:column;z-index:10}
 #logHead{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #223049;color:#cbd5e1;font-weight:700}
 #logBody{padding:6px 8px;overflow:auto;font-family:ui-monospace,Consolas,monaco,monospace;font-size:12px;color:#cbd5e1}
 .log-info{color:#a7f3d0} .log-warn{color:#fde68a} .log-error{color:#fca5a5}
 /* status colors */
-.val-ok{color:var(--ok)} .val-bad{color:var(--danger)}
+.val-ok{color:var(--ok)} .val-warn{color:var(--warn)} .val-bad{color:var(--danger)}
 #Z{font-weight:800;color:var(--accent)}
+.status{font-size:12px}
 </style>
 </head>
 <body>
@@ -88,7 +89,7 @@ label.small{font-size:12px;color:var(--muted)}
     <h3>Элементы</h3>
     <div id="list" class="list"></div>
     <h3>Примечание</h3>
-    <div class="card muted">Дефолт: динамик <b>KARA LF</b> — 8 Ω, 450 W AES; усилитель <b>LA8</b> — 1800 W/4Ω (даёт V<sub>max</sub>), БП ~3.6 кВт. Мощность: P=min(V<sub>max</sub>²/Z, P<sub>psu</sub>, (P<sub>psu</sub>/V<sub>max</sub>)²·Z).</div>
+    <div class="card muted">Сеть по умолчанию: 220 В, автомат 16 А, cosφ=0.95, η=0.85. P<sub>eff</sub> = min(P<sub>psu</sub>, U·I·cosφ·η). Ограничители: напряжение шин (V<sub>max</sub>) и питание/сеть. Если питание ограничивает — это и есть «токоограничение».</div>
   </aside>
 
   <div id="stage">
@@ -126,7 +127,8 @@ const st={ amp:null, spk:[], wires:[], src:{pos:null,neg:null} };
 function addAmp(x=110,y=160){
   if(st.amp){ logWarn('Усилитель уже добавлен'); return; }
   const id=nextId('amp_'), plus=nextId('p_'), minus=nextId('p_');
-  const amp={id,x,y,name:'LA8 (канал)',plus,minus, Pc:1800, Zref:4, Ppsu:3600};
+  // Сеть: Vmains, IlineMax, PF, eta
+  const amp={id,x,y,name:'LA8 (канал)',plus,minus, Pc:1800, Zref:4, Ppsu:3600, Vmains:220, IlineMax:16, PF:0.95, eta:0.85};
   st.amp=amp; renderAmp(amp); refreshList(); setSource(plus,minus); logInfo('Добавлен усилитель '+id); recalc();
 }
 function addSpk(x=520,y=180){
@@ -145,12 +147,25 @@ function renderAmp(a){
     <div class="body">
       <div class="inRow">
         <label class="small">Pкан, W</label><input class="w96 aPc" type="number" min="1" value="${a.Pc}"/>
-        <label class="small">@Ω</label><input class="w72 aZref" type="number" step="0.1" min="0.1" value="${a.Zref}"/>
+        <label class="small">@Ω</label><input class="w64 aZref" type="number" step="0.1" min="0.1" value="${a.Zref}"/>
         <label class="small">БП, W</label><input class="w96 aPpsu" type="number" min="1" value="${a.Ppsu}"/>
+      </div>
+      <div class="inRow">
+        <label class="small">Сеть, В</label><input class="w72 aVm" type="number" min="100" value="${a.Vmains}"/>
+        <label class="small">Авт., A</label><input class="w64 aIm" type="number" min="1" value="${a.IlineMax}"/>
+        <label class="small">cosφ</label><input class="w64 aPF" type="number" step="0.01" min="0.1" max="1" value="${a.PF}"/>
+        <label class="small">η</label><input class="w64 aETA" type="number" step="0.01" min="0.1" max="1" value="${a.eta}"/>
       </div>
       <div class="inRow">
         <span class="small">I<sub>out</sub>: <b id="ampI" class="val-ok">0 A</b></span>
         <span class="small">P<sub>real</sub>: <b id="ampP" class="val-ok">0 W</b></span>
+        <span class="small">I<sub>сеть</sub>: <b id="ampIL" class="val-ok">0 A</b></span>
+      </div>
+      <div class="inRow status">
+        <span>Статус: <b id="ampStatus" class="val-ok">—</b></span>
+      </div>
+      <div class="inRow status">
+        <span>Токоограничение: <b id="ampClamp" class="val-ok">не активно</b></span>
       </div>
       <div class="ports">
         <div class="sideL"><div class="port plus" data-port="${a.plus}"></div></div>
@@ -164,6 +179,10 @@ function renderAmp(a){
   n.querySelector('.aPc').oninput=e=>{ a.Pc=Math.max(1,parseFloat(e.target.value||1)); recalc(); };
   n.querySelector('.aZref').oninput=e=>{ a.Zref=Math.max(0.1,parseFloat(e.target.value||4)); recalc(); };
   n.querySelector('.aPpsu').oninput=e=>{ a.Ppsu=Math.max(1,parseFloat(e.target.value||1)); recalc(); };
+  n.querySelector('.aVm').oninput=e=>{ a.Vmains=Math.max(100,parseFloat(e.target.value||220)); recalc(); };
+  n.querySelector('.aIm').oninput=e=>{ a.IlineMax=Math.max(1,parseFloat(e.target.value||16)); recalc(); };
+  n.querySelector('.aPF').oninput=e=>{ a.PF=Math.min(1,Math.max(0.1,parseFloat(e.target.value||0.95))); recalc(); };
+  n.querySelector('.aETA').oninput=e=>{ a.eta=Math.min(1,Math.max(0.1,parseFloat(e.target.value||0.85))); recalc(); };
 }
 function renderSpk(s){
   const n=document.createElement('div'); n.className='node'; n.dataset.kind='spk'; n.dataset.id=s.id;
@@ -266,7 +285,7 @@ function refreshList(){
   if(st.amp){
     const a=st.amp, c=document.createElement('div'); c.className='card';
     c.innerHTML=`<div class="row"><b>${a.name}</b><button class="rm">Удалить</button></div>
-      <div class="muted">Канал: ${a.Pc} W @ ${a.Zref} Ω; БП: ${a.Ppsu} W</div>`;
+      <div class="muted">Канал: ${a.Pc} W @ ${a.Zref} Ω; БП: ${a.Ppsu} W; Сеть: ${a.Vmains} В / ${a.IlineMax} А</div>`;
     c.querySelector('.rm').onclick=()=>{ removeNode(a.id); };
     list.appendChild(c);
   }
@@ -330,21 +349,62 @@ function calcZandRecommend(){
   updateAmpReadouts(Z);
 }
 
-/* ===== Усилитель: авто токоограничение из Pc/Zref и Ppsu ===== */
+/* ===== Усилитель: статус и токоограничение ===== */
 function updateAmpReadouts(Z){
   const amp=st.amp; if(!amp){ return; }
-  const Iel=$("#ampI"), Pel=$("#ampP");
-  if(!Iel||!Pel){ return; }
-  if(!isFinite(Z)||Z<=0){ Iel.textContent='0 A'; Iel.className='val-ok'; Pel.textContent='0 W'; Pel.className='val-ok'; return; }
-  const Vmax = Math.sqrt(amp.Pc * amp.Zref); // по рейтингу канала
-  const P_v = Vmax*Vmax / Z;                 // ограничение по напряжению
-  const Imax_psu = amp.Ppsu / Vmax;          // токовый предел, вытекающий из мощности БП
-  const P_i = Imax_psu*Imax_psu * Z;         // ограничение по току
-  const P_real = Math.min(amp.Ppsu, P_v, P_i);
-  const Iout = Math.sqrt(P_real / Z);
+  const Iel=$("#ampI"), Pel=$("#ampP"), ILel=$("#ampIL"), StEl=$("#ampStatus"), ClEl=$("#ampClamp");
+  if(!Iel||!Pel||!ILel||!StEl||!ClEl){ return; }
+  if(!isFinite(Z)||Z<=0){
+    Iel.textContent='0 A'; Iel.className='val-ok';
+    Pel.textContent='0 W'; Pel.className='val-ok';
+    ILel.textContent='0 A'; ILel.className='val-ok';
+    StEl.textContent='Нет подключённой нагрузки'; StEl.className='val-warn';
+    ClEl.textContent='—'; ClEl.className='val-ok';
+    return;
+  }
+  const eps=1e-6;
+  const Vmax = Math.sqrt(amp.Pc * amp.Zref);                 // предел напряжения
+  const Pgrid = amp.Vmains * amp.IlineMax * amp.PF * amp.eta; // сетевой потолок
+  const Peff = Math.min(amp.Ppsu, Pgrid);                     // эффективный предел
+  const Pv = Vmax*Vmax / Z;                                   // потолок по напряжению
+  const Vopt = Math.min(Vmax, Math.sqrt(Peff * Z));           // оптимальное V
+  const Preal = Math.min(Pv, Peff);                           // реально в нагрузку
+  const Iout = Vopt / Z;                                      // ток на нагрузке
+  const Iline = Preal / (amp.Vmains * amp.PF * amp.eta);      // ток из сети
+
+  // Вывод значений
   Iel.textContent = `${Iout.toFixed(2)} A`;
-  Pel.textContent = `${P_real.toFixed(0)} W`;
-  Pel.className = (P_real >= 0.9*amp.Ppsu) ? 'val-bad' : 'val-ok';
+  Pel.textContent = `${Preal.toFixed(0)} W`;
+  ILel.textContent = `${Iline.toFixed(1)} A`;
+
+  // Определяем активный ограничитель и формируем статус
+  let status='', sClass='val-ok', clampTxt='не активно', clampClass='val-ok';
+  const near = (Preal >= 0.9*Peff) || (Iline >= 0.9*amp.IlineMax);
+  const overLine = Iline > amp.IlineMax + 1e-9;
+
+  if (Peff + eps < Pv) {
+    // ограничивает питание (БП/сеть) => это токоограничение
+    const cause = (Pgrid <= amp.Ppsu + eps) ? 'сеть/автомат' : 'блок питания';
+    status = `Ограничение по питанию (${cause}). P_реал = ${Preal.toFixed(0)} W из P_предел = ${Peff.toFixed(0)} W`;
+    sClass = near ? 'val-warn' : 'val-ok';
+    const Icl = Math.sqrt(Peff / Z); // мгновенный "предел" тока в данной точке
+    clampTxt = `активно: I≤${Icl.toFixed(2)} A (из P_предел)`;
+    clampClass = near ? 'val-warn' : 'val-ok';
+  } else {
+    // ограничивает напряжение шин (Vmax)
+    status = `Ограничение по напряжению шин (V_max). P_реал = ${Preal.toFixed(0)} W из V_max = ${Vmax.toFixed(1)} В`;
+    sClass = near ? 'val-warn' : 'val-ok';
+    clampTxt = 'не активно (упираемся в V_max)';
+    clampClass = 'val-ok';
+  }
+
+  if (overLine) { sClass='val-bad'; status += `; ПРЕВЫШЕН ток сети (${Iline.toFixed(1)} A > ${amp.IlineMax} A)`; }
+
+  // Применяем стили
+  StEl.textContent=status; StEl.className=sClass;
+  Pel.className = near ? 'val-warn' : 'val-ok';
+  ILel.className = (Iline >= 0.9*amp.IlineMax) ? (overLine?'val-bad':'val-warn') : 'val-ok';
+  ClEl.textContent=clampTxt; ClEl.className=clampClass;
 }
 
 /* ===== Решатель ===== */
