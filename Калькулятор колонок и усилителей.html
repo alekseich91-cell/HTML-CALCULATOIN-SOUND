@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Калькулятор колонок и усилителей (группы/порталы)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #111;
+            color: #eee;
+            margin: 0;
+            padding: 16px;
+            font-size: 15px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1b1b1b;
+            border-radius: 10px;
+            padding: 16px 20px 20px;
+            box-shadow: 0 0 25px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-size: 20px;
+            margin-top: 0;
+            text-align: center;
+        }
+        fieldset {
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            padding: 10px 12px 12px;
+        }
+        legend {
+            padding: 0 6px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        label {
+            font-size: 14px;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        .row > div {
+            flex: 1 1 120px;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #111;
+            color: #eee;
+            font-size: 16px;
+        }
+        input[type="number"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #5ecfff;
+        }
+        .radio-group, .checkbox-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .radio-group label, .checkbox-group label {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            cursor: pointer;
+        }
+        input[type="radio"],
+        input[type="checkbox"] {
+            transform: scale(1.1);
+        }
+        .group-card {
+            background: #151515;
+            border-radius: 8px;
+            border: 1px solid #333;
+            padding: 8px 10px 10px;
+            margin-bottom: 8px;
+        }
+        .group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .group-title-label {
+            font-size: 13px;
+            color: #ccc;
+        }
+        .group-remove-btn {
+            margin-left: auto;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            background: #3b1d1d;
+            color: #f99;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .group-remove-btn:hover {
+            background: #5a2626;
+        }
+        .add-group-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #21425a;
+            color: #dff4ff;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .add-group-btn:hover {
+            background: #285675;
+        }
+        .results-block {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        }
+        .result-card {
+            background: #151515;
+            border-radius: 8px;
+            padding: 8px 10px;
+            border: 1px solid #333;
+            font-size: 13px;
+        }
+        .result-card h3 {
+            margin: 0 0 4px;
+            font-size: 14px;
+            color: #5ecfff;
+        }
+        .note {
+            font-size: 11px;
+            color: #999;
+            margin-top: 6px;
+        }
+        .small {
+            font-size: 12px;
+            color: #ccc;
+        }
+        .export-btn {
+            margin-top: 10px;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            background: #27613f;
+            color: #e6ffe9;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .export-btn:hover {
+            background: #2f7b4e;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 8px;
+            }
+            .container {
+                padding: 12px;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            h1 {
+                font-size: 18px;
+            }
+            .row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .row > div {
+                flex: 1 1 100%;
+            }
+            .results-block {
+                grid-template-columns: 1fr;
+            }
+            .group-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .group-remove-btn {
+                align-self: flex-end;
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="margin-bottom:10px;font-size:13px;">
+        <a href="index.html" style="color:#5ecfff;text-decoration:none;">← На главную</a>
+    </div>
+
+    <h1>Калькулятор колонок, усилителей и NL4 (порталы, мониторы и т.д.)</h1>
+
+    <fieldset>
+        <legend>Группы колонок (позиции)</legend>
+        <div id="groupsContainer"></div>
+        <button type="button" class="add-group-btn" id="addGroupBtn">+ Добавить группу (мониторы, инфилы…)</button>
+        <div class="note">
+            Каждая группа — отдельная позиция: порталы L/R, фронтфилы, инфилы, мониторы и т.д.
+            Внутри группы считается своя пассивная система (портальная / мониторная), затем всё суммируется.
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Сводные результаты по всем группам</legend>
+        <div class="results-block">
+            <div class="result-card">
+                <h3>Усилители (всего)</h3>
+                <div id="ampsResult">—</div>
+            </div>
+            <div class="result-card">
+                <h3>NL4 для топов/мониторов (все группы)</h3>
+                <div id="nl4Tops">—</div>
+            </div>
+            <div class="result-card">
+                <h3>NL4 для сабов (все группы)</h3>
+                <div id="nl4Subs">—</div>
+            </div>
+            <div class="result-card">
+                <h3>NL4 всего (все группы)</h3>
+                <div id="nl4Total">—</div>
+            </div>
+        </div>
+        <div class="note" id="groupsBreakdown"></div>
+        <button type="button" class="export-btn" id="exportPdfBtn">Экспорт в PDF</button>
+        <div class="note">
+            Портальные группы считают стерео L/R по количеству кабинетов.
+            В мониторном режиме усилители считаются по линиям:
+            Fullrange — 1 линия = 1 плечо, Biamp — 1 линия = 2 плеча.
+            Длинных NL4 не меньше, чем линий, короткие оцениваются как
+            <code>мониторы − линии</code>.
+        </div>
+    </fieldset>
+</div>
+
+<!-- Скрытая область для красивого PDF-превью -->
+<div id="pdfPreview" style="
+    position:fixed;
+    left:-10000px;
+    top:0;
+    background:#ffffff;
+    color:#000000;
+    padding:16px 20px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    width:800px;
+    box-sizing:border-box;
+"></div>
+
+<!-- jsPDF + html2canvas для экспорта в PDF (как картинка, чтобы не ломалась кириллица) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+    let groups = [];
+    let nextGroupId = 1;
+
+    function parseNumValue(value) {
+        const v = parseFloat(String(value).replace(',', '.'));
+        return isNaN(v) ? 0 : v;
+    }
+
+    function calcConnectors(count) {
+        let n = Math.floor(count);
+        if (n <= 0) return { short: 0, long: 0 };
+
+        let side1 = Math.floor((n + 1) / 2);
+        let side2 = n - side1;
+
+        let pairs1 = Math.floor(side1 / 2);
+        let singles1 = side1 % 2;
+        let pairs2 = Math.floor(side2 / 2);
+        let singles2 = side2 % 2;
+
+        let shortC = pairs1 + pairs2;
+        let longC = pairs1 + singles1 + pairs2 + singles2;
+        if (longC < 2) longC = 2;
+
+        return { short: shortC, long: longC };
+    }
+
+    function calcGroup(group) {
+        const fullrange = !!group.fullrange;
+        const monitorMode = !!group.monitorMode;
+
+        if (monitorMode) {
+            // ---- Мониторный режим (как было) ----
+            const monitors = parseNumValue(group.tops); // мониторы всего
+            const lines = parseNumValue(group.subs);    // линий мониторов
+
+            const channelsPerLine = fullrange ? 1 : 2;
+            const channelsNeed = lines * channelsPerLine;
+            const ampsForMonitors = channelsNeed > 0 ? Math.ceil(channelsNeed / 4) : 0;
+
+            const ampsTotal = ampsForMonitors;
+
+            const longNL4 = lines > 0 ? lines : 0;
+            const shortNL4 = monitors > lines ? (monitors - lines) : 0;
+
+            return {
+                monitorMode: true,
+                linesMon: lines,
+                ampsTotal,
+                ampsForTops: ampsForMonitors,
+                ampsForSubs: 0,
+                top05: shortNL4,
+                top15: longNL4,
+                sub05: 0,
+                sub15: 0,
+                fullrange,
+                doubleSub: false,
+                topQty: monitors,
+                subQty: lines
+            };
+        }
+
+        // ---- Портальная группа: топы + сабы ----
+        const topQty = parseNumValue(group.tops);
+        const subQty = parseNumValue(group.subs);
+        const doubleSub = !!group.doubleSub;
+
+        const ampTopCap = fullrange ? 8 : 4;       // 8 кабинетов на усилитель в Fullrange
+        const ampSubCap = doubleSub ? 4 : 8;       // как и раньше для сабов
+
+        let ampsForTops = 0;
+        let ampsForSubs = 0;
+        let ampsTotal = 0;
+
+        if (fullrange && !doubleSub) {
+            // ГЛАВНОЕ ИЗМЕНЕНИЕ:
+            // В Fullrange без сдвоенных сабов считаем общий пул кабинетов:
+            // 2 топа + 2 саба => 4 кабины, при ёмкости 8 каб/усил → 1 усилитель.
+            const totalCabs = topQty + subQty;
+            ampsTotal = totalCabs > 0 ? Math.ceil(totalCabs / ampTopCap) : 0;
+
+            // Для текстового описания примерно делим, сколько "из них" уходит на топы.
+            ampsForTops = topQty > 0 ? Math.ceil(topQty / ampTopCap) : 0;
+            ampsForSubs = Math.max(0, ampsTotal - ampsForTops);
+        } else {
+            // Biamp или режим со сдвоенными сабами — считаем отдельно, как раньше
+            ampsForTops = topQty > 0 ? Math.ceil(topQty / ampTopCap) : 0;
+            ampsForSubs = subQty > 0 ? Math.ceil(subQty / ampSubCap) : 0;
+            ampsTotal = ampsForTops + ampsForSubs;
+        }
+
+        // Кабели NL4 остаются по старой логике
+        let spkTop05 = 0, spkTop15 = 0;
+        if (topQty > 0) {
+            const r = calcConnectors(topQty);
+            spkTop05 = r.short;
+            spkTop15 = r.long;
+        }
+
+        let spkSub05 = 0, spkSub15 = 0;
+        if (subQty > 0) {
+            if (doubleSub) {
+                spkSub05 = 0;
+                spkSub15 = Math.max(2, Math.floor(subQty));
+            } else {
+                const r2 = calcConnectors(subQty);
+                spkSub05 = r2.short;
+                spkSub15 = r2.long;
+            }
+        }
+
+        return {
+            monitorMode: false,
+            linesMon: 0,
+            ampsTotal,
+            ampsForTops,
+            ampsForSubs,
+            top05: spkTop05,
+            top15: spkTop15,
+            sub05: spkSub05,
+            sub15: spkSub15,
+            fullrange,
+            doubleSub,
+            topQty,
+            subQty
+        };
+    }
+
+    function renderGroups() {
+        const container = document.getElementById('groupsContainer');
+        if (!container) return;
+
+        if (groups.length === 0) {
+            addGroup({
+                name: 'Порталы L/R',
+                tops: 8,
+                subs: 4,
+                fullrange: true,
+                doubleSub: false,
+                monitorMode: false
+            });
+            return;
+        }
+
+        let html = '';
+        for (const g of groups) {
+            const isMon = !!g.monitorMode;
+            const topsLabel = isMon ? 'Мониторы, всего (шт):' : 'Топы, всего (шт):';
+            const subsLabel = isMon ? 'Линий мониторов (шт):' : 'Сабы, всего (шт):';
+
+            html += `
+            <div class="group-card" data-group-id="${g.id}">
+                <div class="group-header">
+                    <div style="flex:1 1 auto;">
+                        <div class="group-title-label">Название группы / позиции:</div>
+                        <input type="text" id="group-name-${g.id}" value="${g.name}">
+                    </div>
+                    <button type="button" class="group-remove-btn" data-remove-id="${g.id}">Удалить</button>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>
+                            <input type="checkbox" id="monitorMode-${g.id}" ${isMon ? 'checked' : ''}>
+                            Мониторный режим (линии ↔ отдельные выходы)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label for="tops-${g.id}">${topsLabel}</label>
+                        <input type="number" id="tops-${g.id}" min="0" step="1" value="${g.tops}">
+                    </div>
+                    <div>
+                        <label for="subs-${g.id}">${subsLabel}</label>
+                        <input type="number" id="subs-${g.id}" min="0" step="1" value="${g.subs}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <div class="small">Режим усилителей (топы/мониторы):</div>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="ampMode-${g.id}" value="fullrange" ${g.fullrange ? 'checked' : ''}>
+                                Fullrange (4 плеча)
+                            </label>
+                            <label>
+                                <input type="radio" name="ampMode-${g.id}" value="biamp" ${!g.fullrange ? 'checked' : ''}>
+                                Biamp (HF+LF на линию)
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        ${isMon ? `
+                            <div class="note">
+                                Мониторный режим: считаем по линиям.
+                                Пример: 4 монитора в 2 линиях →<br>
+                                Fullrange: 2 плеча, Biamp: 4 плеча.
+                            </div>
+                        ` : `
+                            <div class="small">Сабы:</div>
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="doubleSub-${g.id}" ${g.doubleSub ? 'checked' : ''}>
+                                    Сдвоенные сабы (2×)
+                                </label>
+                            </div>
+                            <div class="note">
+                                Для одиночных сабов: до 8&nbsp;шт на усилитель,
+                                для сдвоенных: до 4&nbsp;шт на усилитель.
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        container.innerHTML = html;
+
+        for (const g of groups) {
+            const nameEl = document.getElementById(`group-name-${g.id}`);
+            const topsEl = document.getElementById(`tops-${g.id}`);
+            const subsEl = document.getElementById(`subs-${g.id}`);
+            const fullrangeRadio = document.querySelector(`input[name="ampMode-${g.id}"][value="fullrange"]`);
+            const biampRadio = document.querySelector(`input[name="ampMode-${g.id}"][value="biamp"]`);
+            const doubleSubEl = document.getElementById(`doubleSub-${g.id}`);
+            const monitorModeEl = document.getElementById(`monitorMode-${g.id}`);
+
+            if (nameEl) {
+                nameEl.addEventListener('input', () => {
+                    g.name = nameEl.value;
+                    updateCalc();
+                });
+            }
+            if (topsEl) {
+                topsEl.addEventListener('input', () => {
+                    g.tops = topsEl.value;
+                    updateCalc();
+                });
+            }
+            if (subsEl) {
+                subsEl.addEventListener('input', () => {
+                    g.subs = subsEl.value;
+                    updateCalc();
+                });
+            }
+            if (fullrangeRadio) {
+                fullrangeRadio.addEventListener('change', () => {
+                    g.fullrange = fullrangeRadio.checked;
+                    updateCalc();
+                });
+            }
+            if (biampRadio) {
+                biampRadio.addEventListener('change', () => {
+                    g.fullrange = !biampRadio.checked ? true : false;
+                    updateCalc();
+                });
+            }
+            if (doubleSubEl) {
+                doubleSubEl.addEventListener('change', () => {
+                    g.doubleSub = doubleSubEl.checked;
+                    updateCalc();
+                });
+            }
+            if (monitorModeEl) {
+                monitorModeEl.addEventListener('change', () => {
+                    g.monitorMode = monitorModeEl.checked;
+                    renderGroups();
+                });
+            }
+        }
+
+        const removeButtons = container.querySelectorAll('[data-remove-id]');
+        removeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.getAttribute('data-remove-id'), 10);
+                removeGroup(id);
+            });
+        });
+
+        updateCalc();
+    }
+
+    function addGroup(opts) {
+        const g = {
+            id: nextGroupId++,
+            name: opts && opts.name ? opts.name : `Группа ${nextGroupId - 1}`,
+            tops: opts && typeof opts.tops !== 'undefined' ? opts.tops : 0,
+            subs: opts && typeof opts.subs !== 'undefined' ? opts.subs : 0,
+            fullrange: opts && typeof opts.fullrange !== 'undefined' ? opts.fullrange : true,
+            doubleSub: opts && typeof opts.doubleSub !== 'undefined' ? opts.doubleSub : false,
+            monitorMode: opts && typeof opts.monitorMode !== 'undefined' ? opts.monitorMode : false
+        };
+        groups.push(g);
+        renderGroups();
+    }
+
+    function removeGroup(id) {
+        groups = groups.filter(g => g.id !== id);
+        if (groups.length === 0) {
+            addGroup({
+                name: 'Порталы L/R',
+                tops: 0,
+                subs: 0,
+                fullrange: true,
+                doubleSub: false,
+                monitorMode: false
+            });
+        } else {
+            renderGroups();
+        }
+    }
+
+    function updateCalc() {
+        const ampsResult = document.getElementById('ampsResult');
+        const nl4Tops = document.getElementById('nl4Tops');
+        const nl4Subs = document.getElementById('nl4Subs');
+        const nl4Total = document.getElementById('nl4Total');
+        const breakdownEl = document.getElementById('groupsBreakdown');
+
+        if (!ampsResult || !nl4Tops || !nl4Subs || !nl4Total || !breakdownEl) return;
+
+        let totalAmps = 0;
+        let totalTop05 = 0, totalTop15 = 0;
+        let totalSub05 = 0, totalSub15 = 0;
+
+        let lines = [];
+
+        for (const g of groups) {
+            const res = calcGroup(g);
+
+            totalAmps += res.ampsTotal;
+            totalTop05 += res.top05;
+            totalTop15 += res.top15;
+            totalSub05 += res.sub05;
+            totalSub15 += res.sub15;
+
+            let modeText;
+            if (res.monitorMode) {
+                modeText =
+                    `мониторный режим, линий: ${res.subQty}, ` +
+                    (res.fullrange ? 'Fullrange' : 'Biamp');
+            } else {
+                modeText =
+                    `портальная, ${res.fullrange ? 'Fullrange' : 'Biamp'}, ` +
+                    `сабы: ${res.doubleSub ? '2× сдвоенные' : 'одиночные'}`;
+            }
+
+            const line =
+                `${g.name || 'Без названия'}: ` +
+                `усил. ${res.ampsTotal} (топы/мониторы ${res.ampsForTops}` +
+                `${res.ampsForSubs ? `, сабы ${res.ampsForSubs}` : ''}; ${modeText}), ` +
+                `NL4 0.5 м: ${res.top05 + res.sub05}, 15 м: ${res.top15 + res.sub15}`;
+            lines.push(line);
+        }
+
+        ampsResult.textContent = `${totalAmps} усил. (сумма по всем группам)`;
+        nl4Tops.textContent = `0.5 м: ${totalTop05} шт, 15 м: ${totalTop15} шт`;
+        nl4Subs.textContent = `0.5 м: ${totalSub05} шт, 15 м: ${totalSub15} шт`;
+        nl4Total.textContent =
+            `0.5 м: ${totalTop05 + totalSub05} шт, 15 м: ${totalTop15 + totalSub15} шт`;
+
+        breakdownEl.innerHTML = lines.length
+            ? 'По группам:<br>' + lines.map(l => '• ' + l).join('<br>')
+            : '';
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function buildPdfPreviewHtml() {
+        const now = new Date();
+        let totalAmps = 0;
+        let totalTop05 = 0, totalTop15 = 0;
+        let totalSub05 = 0, totalSub15 = 0;
+
+        let rowsHtml = '';
+
+        groups.forEach((g) => {
+            const res = calcGroup(g);
+
+            totalAmps += res.ampsTotal;
+            totalTop05 += res.top05;
+            totalTop15 += res.top15;
+            totalSub05 += res.sub05;
+            totalSub15 += res.sub15;
+
+            const nl4Group05 = res.top05 + res.sub05;
+            const nl4Group15 = res.top15 + res.sub15;
+
+            let desc;
+            if (res.monitorMode) {
+                desc = `Мониторы: ${res.topQty} шт, линий: ${res.subQty}, режим: ${res.fullrange ? 'Fullrange' : 'Biamp'}`;
+            } else {
+                desc = `Топы: ${res.topQty} шт, сабы: ${res.subQty} шт, ` +
+                       `режим: ${res.fullrange ? 'Fullrange' : 'Biamp'}, ` +
+                       `сабы: ${res.doubleSub ? '2× сдвоенные' : 'одиночные'}`;
+            }
+
+            rowsHtml += `
+                <tr>
+                    <td style="border-bottom:1px solid #ccc;padding:4px 6px;">${escapeHtml(g.name || 'Без названия')}</td>
+                    <td style="border-bottom:1px solid #ccc;padding:4px 6px;">${escapeHtml(desc)}</td>
+                    <td style="border-bottom:1px solid #ccc;padding:4px 6px;text-align:center;">${res.ampsTotal}</td>
+                    <td style="border-bottom:1px solid #ccc;padding:4px 6px;text-align:center;">${nl4Group05}</td>
+                    <td style="border-bottom:1px solid #ccc;padding:4px 6px;text-align:center;">${nl4Group15}</td>
+                </tr>
+            `;
+        });
+
+        const total05 = totalTop05 + totalSub05;
+        const total15 = totalTop15 + totalSub15;
+
+        return `
+            <h2 style="text-align:center;margin:0 0 6px;">Отчёт по колонкам, усилителям и NL4</h2>
+            <div style="text-align:center;font-size:12px;margin-bottom:12px;">
+                ${escapeHtml(now.toLocaleString('ru-RU'))}
+            </div>
+
+            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">
+                <thead>
+                    <tr>
+                        <th style="border-bottom:1px solid #000;padding:4px 6px;text-align:left;">Группа / позиция</th>
+                        <th style="border-bottom:1px solid #000;padding:4px 6px;text-align:left;">Количества / режим</th>
+                        <th style="border-bottom:1px solid #000;padding:4px 6px;text-align:center;">Усилители</th>
+                        <th style="border-bottom:1px solid #000;padding:4px 6px;text-align:center;">NL4 0.5 м</th>
+                        <th style="border-bottom:1px solid #000;padding:4px 6px;text-align:center;">NL4 15 м</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml || `
+                        <tr>
+                            <td colspan="5" style="padding:6px;text-align:center;color:#666;">
+                                Группы не заданы
+                            </td>
+                        </tr>`}
+                </tbody>
+            </table>
+
+            <div style="margin-top:4px;font-size:11px;">
+                <div style="font-weight:bold;margin-bottom:4px;">Итоговое количество усилителей и коммутации:</div>
+                <div>Усилители всего: <b>${totalAmps}</b> шт</div>
+                <div>NL4 для топов/мониторов: 0.5 м — <b>${totalTop05}</b> шт, 15 м — <b>${totalTop15}</b> шт</div>
+                <div>NL4 для сабов: 0.5 м — <b>${totalSub05}</b> шт, 15 м — <b>${totalSub15}</b> шт</div>
+                <div>NL4 всего: 0.5 м — <b>${total05}</b> шт, 15 м — <b>${total15}</b> шт</div>
+            </div>
+        `;
+    }
+
+    function exportToPdf() {
+        if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) {
+            alert('Не удалось загрузить библиотеки для экспорта PDF.');
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+
+        const preview = document.getElementById('pdfPreview');
+        preview.innerHTML = buildPdfPreviewHtml();
+
+        window.html2canvas(preview, {
+            scale: 2,
+            backgroundColor: '#ffffff'
+        }).then(canvas => {
+            const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+            const pdfWidth = doc.internal.pageSize.getWidth();
+            const pdfHeight = doc.internal.pageSize.getHeight();
+
+            const imgWidthPx = canvas.width;
+            const imgHeightPx = canvas.height;
+
+            const ratio = Math.min(pdfWidth / imgWidthPx, pdfHeight / imgHeightPx);
+            const imgWidth = imgWidthPx * ratio;
+            const imgHeight = imgHeightPx * ratio;
+
+            const x = (pdfWidth - imgWidth) / 2;
+            const y = (pdfHeight - imgHeight) / 5;
+
+            const imgData = canvas.toDataURL('image/png');
+            doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+            doc.save('amp_speakers_report.pdf');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const addBtn = document.getElementById('addGroupBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                addGroup({
+                    name: 'Новая группа',
+                    tops: 0,
+                    subs: 0,
+                    fullrange: true,
+                    doubleSub: false,
+                    monitorMode: false
+                });
+            });
+        }
+
+        const exportBtn = document.getElementById('exportPdfBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', exportToPdf);
+        }
+
+        addGroup({
+            name: 'Порталы L/R',
+            tops: 8,
+            subs: 4,
+            fullrange: true,
+            doubleSub: false,
+            monitorMode: false
+        });
+    });
+</script>
+</body>
+</html>
