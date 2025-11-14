@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Промптер для текстов песен</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Левый сайдбар — список песен */
+        #leftSidebar {
+            width: 260px;
+            border-right: 1px solid #333;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #050505;
+            overflow-y: auto; /* прокрутка всего столбца */
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+
+        #songList {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .song-item {
+            padding: 4px 6px;
+            margin-bottom: 4px;
+            font-size: 13px;
+            border-radius: 4px;
+            background: #111;
+            color: #ddd;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .song-item-main {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .song-item:hover {
+            background: #181818;
+        }
+
+        .song-item.active {
+            border-color: #0af;
+            background: #101820;
+        }
+
+        .song-item.played {
+            background: #080808;
+            color: #777;
+        }
+
+        .song-controls {
+            display: flex;
+            gap: 2px;
+        }
+
+        .song-controls button {
+            padding: 0 4px;
+            font-size: 10px;
+            line-height: 16px;
+            height: 18px;
+            min-width: 18px;
+            border-radius: 3px;
+            border: 1px solid #444;
+            background: #202020;
+            color: #ccc;
+            cursor: pointer;
+        }
+
+        .song-controls button:hover {
+            background: #333;
+        }
+
+        #addSongBtn {
+            background: #0af;
+            border: none;
+            color: #000;
+            border-radius: 4px;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 18px;
+            padding: 0;
+        }
+
+        #addSongBtn:hover {
+            filter: brightness(1.1);
+        }
+
+        #resetPlayedBtn {
+            margin-top: 6px;
+            font-size: 11px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #111;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        #resetPlayedBtn:hover {
+            background: #1a1a1a;
+        }
+
+        /* Центральная область — прокрутка текста */
+        #center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        #lyricsContainer {
+            width: 100%;
+            height: 100%;
+            max-width: 900px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            padding: 20px 32px;
+            overflow-y: auto;
+            background: #050505;
+            margin: 0 auto;
+        }
+
+        #lyricsText {
+            font-size: 32px;
+            line-height: 1.4;
+            color: #fff;
+            white-space: pre-wrap;
+            text-align: center;
+            margin: 0 auto;
+            padding-bottom: 0; /* будем динамически задавать при старте прокрутки */
+        }
+
+        /* Правый сайдбар — управление */
+        #rightSidebar {
+            width: 280px;
+            border-left: 1px solid #333;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #050505;
+            font-size: 13px;
+            overflow-y: auto; /* прокрутка всего столбца */
+        }
+
+        .panel {
+            border-radius: 6px;
+            border: 1px solid #333;
+            padding: 8px;
+            background: #080808;
+        }
+
+        .panel-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #888;
+            margin-bottom: 6px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            max-height: 180px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .small-note {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 0;
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        button {
+            background: #222;
+            border-radius: 4px;
+            border: 1px solid #444;
+            color: #fff;
+            font-size: 12px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2c2c2c;
+        }
+
+        button.primary {
+            background: #0af;
+            color: #000;
+            border-color: #0af;
+        }
+
+        button.primary:hover {
+            filter: brightness(1.1);
+        }
+
+        .value-label {
+            font-size: 12px;
+            color: #bbb;
+            margin-bottom: 4px;
+        }
+
+        .section-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .section-row input[type="text"] {
+            flex: 1;
+        }
+
+        .section-row span {
+            font-size: 12px;
+            color: #bbb;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Additional styling for language select, home link, and love note */
+        .language-panel select {
+            width: 100%;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        #homeLink {
+            display: block;
+            margin-top: 8px;
+            color: #0af;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        #homeLink:hover {
+            text-decoration: underline;
+        }
+        #loveNote {
+            margin-top: auto;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- Левый список песен -->
+    <div id="leftSidebar">
+        <div class="sidebar-header">
+            <span id="songsHeader">Песни</span>
+            <button id="addSongBtn" title="Добавить песню">+</button>
+        </div>
+        <div id="songList"></div>
+        <button id="resetPlayedBtn" title="Сбросить отметки проигранных песен">
+            Сбросить проигранные
+        </button>
+        <a id="homeLink" href="index.html">На главную</a>
+    </div>
+
+    <!-- Центральная зона с прокручиваемым текстом -->
+    <div id="center">
+        <div id="lyricsContainer">
+            <div id="lyricsText"></div>
+        </div>
+    </div>
+
+    <!-- Правый сайдбар с управлением -->
+    <div id="rightSidebar">
+        <!-- Language selector panel -->
+        <div class="panel language-panel">
+            <div class="panel-title" id="languagePanelTitle">Язык</div>
+            <select id="languageSelect">
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+        <!-- Общие настройки песни -->
+        <div class="panel">
+            <div class="panel-title" id="songPanelTitle">Песня</div>
+            <label>
+                <span id="titleLabel">Название:</span>
+                <input type="text" id="songTitleInput" placeholder="Название песни">
+            </label>
+            <div class="btn-row">
+                <button id="deleteSongBtn">Удалить песню</button>
+            </div>
+            <div class="small-note" id="deleteNote">
+                Удалить можно любую, кроме последней — она будет просто очищена.
+            </div>
+        </div>
+
+        <!-- Настройки отображения -->
+        <div class="panel">
+            <div class="panel-title" id="displayPanelTitle">Отображение</div>
+
+            <label>
+                <span id="fontSizeLabelText">Размер шрифта</span>
+                <span id="fontSizeLabel" class="value-label"></span>
+                <input type="range" id="fontSizeRange" min="16" max="72" step="2">
+            </label>
+
+            <label>
+                <span id="lineHeightLabelText">Межстрочный интервал</span>
+                <span id="lineHeightLabel" class="value-label"></span>
+                <!-- 1–25 -> 0.1–2.5 -->
+                <input type="range" id="lineHeightRange" min="1" max="25" step="1">
+            </label>
+
+            <label>
+                <span id="textWidthLabelText">Ширина текста</span>
+                <span id="textWidthLabel" class="value-label"></span>
+                <input type="range" id="textWidthRange" min="40" max="100" step="5">
+            </label>
+            <div class="small-note" id="widthNote">
+                Регулирует ширину области текста по центру экрана.
+            </div>
+        </div>
+
+        <!-- Прокрутка -->
+        <div class="panel">
+            <div class="panel-title" id="scrollPanelTitle">Прокрутка</div>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="scrollMode" value="speed" checked>
+                    <span id="bySpeedLabel">По скорости</span>
+                </label>
+                <label>
+                    <input type="radio" name="scrollMode" value="duration">
+                    <span id="byDurationLabel">По длительности</span>
+                </label>
+            </div>
+
+            <div id="speedControls">
+                <label>
+                    <span id="scrollSpeedLabel">Скорость прокрутки</span>
+                    <span id="speedLabel" class="value-label"></span>
+                    <input type="range" id="speedRange" min="1" max="400" step="1">
+                </label>
+                <div class="small-note" id="speedNote">Чем больше значение, тем быстрее движется текст.</div>
+            </div>
+
+            <div id="durationControls" style="display:none;">
+                <label>
+                    <span id="durationLabel">Длительность песни</span>
+                    <input type="text" id="durationInput" placeholder="мм:сс или секунды">
+                </label>
+                <div class="small-note" id="durationExample">Например: <b>3:45</b> или <b>225</b>.</div>
+            </div>
+
+            <div class="btn-row">
+                <button id="startBtn" class="primary">Старт (Enter)</button>
+                <button id="pauseBtn">Пауза / Продолжить (Space)</button>
+                <button id="stopBtn">Стоп</button>
+                <button id="topBtn">В начало</button>
+            </div>
+            <div class="small-note" id="fullscreenNote">
+                Полноэкранный режим — клавиша <b>F</b> или <b>А</b> (русская раскладка).
+            </div>
+        </div>
+
+        <!-- Текст песни -->
+        <div class="panel">
+            <div class="panel-title" id="lyricsPanelTitle">Текст песни</div>
+            <textarea id="lyricsInput" placeholder="Введите текст песни здесь..."></textarea>
+            <div class="btn-row">
+                <button id="applyLyricsBtn" class="primary">Обновить текст</button>
+                <button id="importTxtBtn">Импорт TXT</button>
+            </div>
+            <div class="small-note" id="lyricsNote">
+                Русский текст поддерживается (UTF-8).
+                Для .doc/.docx лучше предварительно сохранить как .txt.
+            </div>
+        </div>
+
+        <!-- Проект -->
+        <div class="panel">
+            <div class="panel-title" id="projectPanelTitle">Проект</div>
+            <div class="btn-row">
+                <button id="exportProjectBtn">Экспорт проекта</button>
+                <button id="importProjectBtn">Импорт проекта</button>
+            </div>
+            <div class="small-note" id="projectNote">
+                Экспортирует все песни и настройки в один JSON-файл.
+            </div>
+        </div>
+        <div id="loveNote">С любовью из России</div>
+    </div>
+</div>
+
+<!-- Скрытые инпуты для файлов -->
+<input type="file" id="txtFileInput" accept=".txt" multiple style="display:none;">
+<input type="file" id="projectFileInput" accept=".json" style="display:none;">
+
+<script>
+    // ---------- Данные ----------
+    let songs = [];
+    let selectedSongIndex = 0;
+    let songCounter = 1;
+
+    // Прокрутка
+    let isScrolling = false;
+    let scrollAnimationId = null;
+    let lastTimestamp = null;
+
+    // DOM-элементы
+    const songListEl = document.getElementById('songList');
+    const addSongBtn = document.getElementById('addSongBtn');
+    const resetPlayedBtn = document.getElementById('resetPlayedBtn');
+    const deleteSongBtn = document.getElementById('deleteSongBtn');
+
+    const lyricsContainer = document.getElementById('lyricsContainer');
+    const lyricsText = document.getElementById('lyricsText');
+
+    const songTitleInput = document.getElementById('songTitleInput');
+    const fontSizeRange = document.getElementById('fontSizeRange');
+    const fontSizeLabel = document.getElementById('fontSizeLabel');
+
+    const lineHeightRange = document.getElementById('lineHeightRange');
+    const lineHeightLabel = document.getElementById('lineHeightLabel');
+
+    const textWidthRange = document.getElementById('textWidthRange');
+    const textWidthLabel = document.getElementById('textWidthLabel');
+
+    const speedRange = document.getElementById('speedRange');
+    const speedLabel = document.getElementById('speedLabel');
+
+    const durationInput = document.getElementById('durationInput');
+    const scrollModeRadios = document.querySelectorAll('input[name="scrollMode"]');
+    const speedControls = document.getElementById('speedControls');
+    const durationControls = document.getElementById('durationControls');
+
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const topBtn = document.getElementById('topBtn');
+
+    const lyricsInput = document.getElementById('lyricsInput');
+    const applyLyricsBtn = document.getElementById('applyLyricsBtn');
+    const importTxtBtn = document.getElementById('importTxtBtn');
+
+    const txtFileInput = document.getElementById('txtFileInput');
+    const exportProjectBtn = document.getElementById('exportProjectBtn');
+    const importProjectBtn = document.getElementById('importProjectBtn');
+    const projectFileInput = document.getElementById('projectFileInput');
+
+    // ---------- Перевод интерфейса ----------
+    const languageSelect = document.getElementById('languageSelect');
+    const htmlRoot = document.documentElement;
+    let currentLang = 'ru';
+
+    const translations = {
+        ru: {
+            songs: 'Песни',
+            addSongTitle: 'Добавить песню',
+            resetPlayed: 'Сбросить проигранные',
+            resetPlayedTitle: 'Сбросить отметки проигранных песен',
+            song: 'Песня',
+            title: 'Название:',
+            songTitlePlaceholder: 'Название песни',
+            deleteSong: 'Удалить песню',
+            deleteNote: 'Удалить можно любую, кроме последней — она будет просто очищена.',
+            display: 'Отображение',
+            fontSize: 'Размер шрифта',
+            lineHeight: 'Межстрочный интервал',
+            textWidth: 'Ширина текста',
+            widthNote: 'Регулирует ширину области текста по центру экрана.',
+            scroll: 'Прокрутка',
+            bySpeed: 'По скорости',
+            byDuration: 'По длительности',
+            scrollSpeed: 'Скорость прокрутки',
+            speedNote: 'Чем больше значение, тем быстрее движется текст.',
+            duration: 'Длительность песни',
+            durationPlaceholder: 'мм:сс или секунды',
+            durationExample: 'Например: <b>3:45</b> или <b>225</b>.',
+            start: 'Старт (Enter)',
+            pause: 'Пауза / Продолжить (Space)',
+            stop: 'Стоп',
+            toTop: 'В начало',
+            fullscreenNote: 'Полноэкранный режим — клавиша <b>F</b> или <b>А</b> (русская раскладка).',
+            lyrics: 'Текст песни',
+            lyricsPlaceholder: 'Введите текст песни здесь...',
+            updateLyrics: 'Обновить текст',
+            importTxt: 'Импорт TXT',
+            lyricsNote: 'Русский текст поддерживается (UTF-8). Для .doc/.docx лучше предварительно сохранить как .txt.',
+            project: 'Проект',
+            exportProject: 'Экспорт проекта',
+            importProject: 'Импорт проекта',
+            projectNote: 'Экспортирует все песни и настройки в один JSON-файл.',
+            language: 'Язык',
+            home: 'На главную',
+            deleteConfirm: 'Удалить текущую песню?',
+            invalidProject: 'Некорректный файл проекта.',
+            errorReading: 'Ошибка при чтении проекта.',
+            withLove: 'С любовью из России'
+        },
+        en: {
+            songs: 'Songs',
+            addSongTitle: 'Add song',
+            resetPlayed: 'Reset played',
+            resetPlayedTitle: 'Reset played songs',
+            song: 'Song',
+            title: 'Title:',
+            songTitlePlaceholder: 'Song title',
+            deleteSong: 'Delete song',
+            deleteNote: 'You can delete any song except the last one—it will just be cleared.',
+            display: 'Display',
+            fontSize: 'Font size',
+            lineHeight: 'Line spacing',
+            textWidth: 'Text width',
+            widthNote: 'Adjusts the width of the text area in the centre of the screen.',
+            scroll: 'Scroll',
+            bySpeed: 'By speed',
+            byDuration: 'By duration',
+            scrollSpeed: 'Scroll speed',
+            speedNote: 'The higher the value, the faster the text moves.',
+            duration: 'Song duration',
+            durationPlaceholder: 'mm:ss or seconds',
+            durationExample: 'For example: <b>3:45</b> or <b>225</b>.',
+            start: 'Start (Enter)',
+            pause: 'Pause / Resume (Space)',
+            stop: 'Stop',
+            toTop: 'To top',
+            fullscreenNote: 'Fullscreen mode — key <b>F</b> or <b>A</b> (Russian layout).',
+            lyrics: 'Lyrics',
+            lyricsPlaceholder: 'Enter song lyrics here...',
+            updateLyrics: 'Update text',
+            importTxt: 'Import TXT',
+            lyricsNote: 'Russian text is supported (UTF-8). For .doc/.docx it’s better to save as .txt first.',
+            project: 'Project',
+            exportProject: 'Export project',
+            importProject: 'Import project',
+            projectNote: 'Exports all songs and settings to a single JSON file.',
+            language: 'Language',
+            home: 'Home',
+            deleteConfirm: 'Delete current song?',
+            invalidProject: 'Invalid project file.',
+            errorReading: 'Error reading project.',
+            withLove: 'With Love From Russia'
+        }
+    };
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        const t = translations[lang] || translations.ru;
+        htmlRoot.lang = lang;
+        // left sidebar
+        document.getElementById('songsHeader').textContent = t.songs;
+        addSongBtn.title = t.addSongTitle;
+        resetPlayedBtn.textContent = t.resetPlayed;
+        resetPlayedBtn.title = t.resetPlayedTitle;
+        document.getElementById('homeLink').textContent = t.home;
+        // song panel
+        document.getElementById('songPanelTitle').textContent = t.song;
+        document.getElementById('titleLabel').textContent = t.title;
+        songTitleInput.placeholder = t.songTitlePlaceholder;
+        deleteSongBtn.textContent = t.deleteSong;
+        document.getElementById('deleteNote').textContent = t.deleteNote;
+        // display panel
+        document.getElementById('displayPanelTitle').textContent = t.display;
+        document.getElementById('fontSizeLabelText').textContent = t.fontSize;
+        document.getElementById('lineHeightLabelText').textContent = t.lineHeight;
+        document.getElementById('textWidthLabelText').textContent = t.textWidth;
+        document.getElementById('widthNote').textContent = t.widthNote;
+        // scroll panel
+        document.getElementById('scrollPanelTitle').textContent = t.scroll;
+        document.getElementById('bySpeedLabel').textContent = t.bySpeed;
+        document.getElementById('byDurationLabel').textContent = t.byDuration;
+        document.getElementById('scrollSpeedLabel').textContent = t.scrollSpeed;
+        document.getElementById('speedNote').textContent = t.speedNote;
+        document.getElementById('durationLabel').textContent = t.duration;
+        durationInput.placeholder = t.durationPlaceholder;
+        document.getElementById('durationExample').innerHTML = t.durationExample;
+        startBtn.textContent = t.start;
+        pauseBtn.textContent = t.pause;
+        stopBtn.textContent = t.stop;
+        topBtn.textContent = t.toTop;
+        document.getElementById('fullscreenNote').innerHTML = t.fullscreenNote;
+        // lyrics panel
+        document.getElementById('lyricsPanelTitle').textContent = t.lyrics;
+        lyricsInput.placeholder = t.lyricsPlaceholder;
+        applyLyricsBtn.textContent = t.updateLyrics;
+        importTxtBtn.textContent = t.importTxt;
+        document.getElementById('lyricsNote').textContent = t.lyricsNote;
+        // project panel
+        document.getElementById('projectPanelTitle').textContent = t.project;
+        exportProjectBtn.textContent = t.exportProject;
+        importProjectBtn.textContent = t.importProject;
+        document.getElementById('projectNote').textContent = t.projectNote;
+        // language panel
+        document.getElementById('languagePanelTitle').textContent = t.language;
+        // love note
+        document.getElementById('loveNote').textContent = t.withLove;
+    }
+
+    // Apply initial language on load
+    if (languageSelect) {
+        setLanguage(languageSelect.value || currentLang);
+        languageSelect.addEventListener('change', () => {
+            setLanguage(languageSelect.value);
+        });
+    } else {
+        setLanguage(currentLang);
+    }
+
+    // ---------- Вспомогательные функции ----------
+
+    function defaultSong() {
+        return {
+            id: Date.now() + '_' + Math.random().toString(16).slice(2),
+            title: 'Песня ' + songCounter++,
+            text: '',
+            fontSize: 32,
+            lineHeight: 0.8,      // дефолт 0.8
+            textWidthPercent: 100, // дефолт 100%
+            scrollMode: 'speed', // 'speed' или 'duration'
+            speed: 30,           // дефолт 30 px/s
+            durationSeconds: 0,  // для режима duration
+            played: false
+        };
+    }
+
+    function createNewSong() {
+        const song = defaultSong();
+        songs.push(song);
+        return songs.length - 1;
+    }
+
+    function renderSongList() {
+        songListEl.innerHTML = '';
+        songs.forEach((song, index) => {
+            const item = document.createElement('div');
+            item.className = 'song-item' +
+                (index === selectedSongIndex ? ' active' : '') +
+                (song.played ? ' played' : '');
+            const main = document.createElement('div');
+            main.className = 'song-item-main';
+            main.textContent = song.title || 'Без названия';
+
+            main.addEventListener('click', () => {
+                selectSong(index);
+            });
+
+            const controls = document.createElement('div');
+            controls.className = 'song-controls';
+
+            const upBtn = document.createElement('button');
+            upBtn.textContent = '▲';
+            upBtn.title = 'Переместить вверх';
+            upBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moveSong(index, index - 1);
+            });
+
+            const downBtn = document.createElement('button');
+            downBtn.textContent = '▼';
+            downBtn.title = 'Переместить вниз';
+            downBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moveSong(index, index + 1);
+            });
+
+            controls.appendChild(upBtn);
+            controls.appendChild(downBtn);
+
+            item.appendChild(main);
+            item.appendChild(controls);
+            songListEl.appendChild(item);
+        });
+    }
+
+    function moveSong(fromIndex, toIndex) {
+        if (toIndex < 0 || toIndex >= songs.length) return;
+        const [song] = songs.splice(fromIndex, 1);
+        songs.splice(toIndex, 0, song);
+
+        if (selectedSongIndex === fromIndex) {
+            selectedSongIndex = toIndex;
+        } else if (selectedSongIndex > fromIndex && selectedSongIndex <= toIndex) {
+            selectedSongIndex--;
+        } else if (selectedSongIndex < fromIndex && selectedSongIndex >= toIndex) {
+            selectedSongIndex++;
+        }
+
+        renderSongList();
+    }
+
+    function selectSong(index) {
+        if (index < 0 || index >= songs.length) return;
+        stopScroll();
+        selectedSongIndex = index;
+        renderSongList();
+        loadSongIntoUI();
+    }
+
+    function loadSongIntoUI() {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+
+        songTitleInput.value = song.title;
+        lyricsInput.value = song.text;
+        lyricsText.textContent = song.text || '';
+
+        // размер шрифта
+        if (!song.fontSize) song.fontSize = 32;
+        fontSizeRange.value = song.fontSize;
+        updateFontSizeDisplay(song.fontSize);
+
+        // межстрочный интервал
+        if (!song.lineHeight) song.lineHeight = 0.8;
+        lineHeightRange.value = Math.round(song.lineHeight * 10);
+        updateLineHeightDisplay(song.lineHeight);
+
+        // ширина текста
+        if (!song.textWidthPercent) song.textWidthPercent = 100;
+        textWidthRange.value = song.textWidthPercent;
+        updateTextWidthDisplay(song.textWidthPercent);
+
+        // режим прокрутки
+        scrollModeRadios.forEach(r => {
+            r.checked = (r.value === song.scrollMode);
+        });
+        updateScrollModeUI(song.scrollMode || 'speed');
+
+        if (song.speed == null) song.speed = 30;
+        speedRange.value = song.speed;
+        updateSpeedLabel(song.speed);
+
+        durationInput.value = formatDuration(song.durationSeconds);
+
+        lyricsContainer.scrollTop = 0;
+    }
+
+    function updateFontSizeDisplay(size) {
+        fontSizeLabel.textContent = size + ' px';
+        lyricsText.style.fontSize = size + 'px';
+    }
+
+    function updateLineHeightDisplay(lineHeight) {
+        lineHeightLabel.textContent = lineHeight.toFixed(1);
+        lyricsText.style.lineHeight = lineHeight;
+    }
+
+    function updateTextWidthDisplay(percent) {
+        textWidthLabel.textContent = percent + ' %';
+        lyricsContainer.style.maxWidth = percent + '%';
+    }
+
+    function updateSpeedLabel(speed) {
+        speedLabel.textContent = speed + ' px/с';
+    }
+
+    function updateScrollModeUI(mode) {
+        if (mode === 'duration') {
+            speedControls.style.display = 'none';
+            durationControls.style.display = 'block';
+        } else {
+            speedControls.style.display = 'block';
+            durationControls.style.display = 'none';
+        }
+    }
+
+    function parseDuration(str) {
+        if (!str) return 0;
+        str = str.trim();
+        if (!str) return 0;
+
+        if (str.includes(':')) {
+            const parts = str.split(':');
+            const minutes = parseInt(parts[0], 10) || 0;
+            const seconds = parseInt(parts[1], 10) || 0;
+            return minutes * 60 + seconds;
+        }
+
+        const sec = parseFloat(str.replace(',', '.'));
+        if (isNaN(sec) || sec < 0) return 0;
+        return sec;
+    }
+
+    function formatDuration(seconds) {
+        if (!seconds || seconds <= 0) return '';
+        const m = Math.floor(seconds / 60);
+        const s = Math.round(seconds % 60);
+        return m + ':' + (s < 10 ? '0' + s : s);
+    }
+
+    function markSongPlayed(index) {
+        const song = songs[index];
+        if (!song) return;
+        song.played = true;
+        renderSongList();
+    }
+
+    // ---------- Прокрутка ----------
+
+    function applyExtraBottomPadding() {
+        // Полстраницы снизу после окончания текста
+        const extra = lyricsContainer.clientHeight * 0.5;
+        lyricsText.style.paddingBottom = extra + 'px';
+    }
+
+    function startScroll() {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+
+        // каждый старт — пересчитываем padding с запасом
+        applyExtraBottomPadding();
+
+        if (isScrolling) return;
+        isScrolling = true;
+        lastTimestamp = null;
+        scrollAnimationId = requestAnimationFrame(stepScroll);
+    }
+
+    function stepScroll(timestamp) {
+        if (!isScrolling) return;
+
+        if (!lastTimestamp) {
+            lastTimestamp = timestamp;
+            scrollAnimationId = requestAnimationFrame(stepScroll);
+            return;
+        }
+
+        const dt = (timestamp - lastTimestamp) / 1000;
+        lastTimestamp = timestamp;
+
+        const song = songs[selectedSongIndex];
+        if (!song) {
+            isScrolling = false;
+            return;
+        }
+
+        const maxScroll = lyricsContainer.scrollHeight - lyricsContainer.clientHeight;
+        if (maxScroll <= 0) {
+            isScrolling = false;
+            return;
+        }
+
+        let speedPxPerSec = song.speed || 0;
+        if (song.scrollMode === 'duration') {
+            const dur = song.durationSeconds || 0;
+            speedPxPerSec = dur > 0 ? (maxScroll / dur) : 0;
+        }
+
+        let deltaScroll = speedPxPerSec * dt;
+
+        // убрали минимальный порог, чтобы низкие скорости были реально медленными
+        if (deltaScroll < 0) deltaScroll = 0;
+
+        lyricsContainer.scrollTop += deltaScroll;
+
+        if (lyricsContainer.scrollTop >= maxScroll) {
+            lyricsContainer.scrollTop = maxScroll;
+            isScrolling = false;
+            markSongPlayed(selectedSongIndex);
+            return;
+        }
+
+        scrollAnimationId = requestAnimationFrame(stepScroll);
+    }
+
+    function pauseScroll() {
+        isScrolling = false;
+        if (scrollAnimationId) {
+            cancelAnimationFrame(scrollAnimationId);
+            scrollAnimationId = null;
+        }
+    }
+
+    function stopScroll() {
+        pauseScroll();
+        lyricsContainer.scrollTop = 0;
+    }
+
+    // ---------- Обработчики UI ----------
+
+    addSongBtn.addEventListener('click', () => {
+        const newIndex = createNewSong();
+        renderSongList();
+        selectSong(newIndex);
+    });
+
+    resetPlayedBtn.addEventListener('click', () => {
+        songs.forEach(s => s.played = false);
+        renderSongList();
+    });
+
+    deleteSongBtn.addEventListener('click', () => {
+        if (songs.length <= 1) {
+            songs[0] = defaultSong();
+            songs[0].title = 'Песня 1';
+            selectedSongIndex = 0;
+            renderSongList();
+            loadSongIntoUI();
+            return;
+        }
+
+        const msg = translations[currentLang]?.deleteConfirm || translations.ru.deleteConfirm;
+        if (!confirm(msg)) return;
+
+        songs.splice(selectedSongIndex, 1);
+        selectedSongIndex = Math.min(selectedSongIndex, songs.length - 1);
+        renderSongList();
+        loadSongIntoUI();
+    });
+
+    songTitleInput.addEventListener('input', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        song.title = songTitleInput.value;
+        renderSongList();
+    });
+
+    fontSizeRange.addEventListener('input', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const size = parseInt(fontSizeRange.value, 10) || 32;
+        song.fontSize = size;
+        updateFontSizeDisplay(size);
+    });
+
+    // Межстрочный интервал (1–25 -> 0.1–2.5)
+    lineHeightRange.addEventListener('input', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const value = parseInt(lineHeightRange.value, 10) || 8; // 0.8 по умолчанию
+        const lh = value / 10;
+        song.lineHeight = lh;
+        updateLineHeightDisplay(lh);
+    });
+
+    textWidthRange.addEventListener('input', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const percent = parseInt(textWidthRange.value, 10) || 100;
+        song.textWidthPercent = percent;
+        updateTextWidthDisplay(percent);
+    });
+
+    scrollModeRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (!radio.checked) return;
+            const mode = radio.value;
+            const song = songs[selectedSongIndex];
+            if (!song) return;
+            song.scrollMode = mode;
+            updateScrollModeUI(mode);
+        });
+    });
+
+    speedRange.addEventListener('input', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const speed = parseInt(speedRange.value, 10) || 30;
+        song.speed = speed;
+        updateSpeedLabel(speed);
+    });
+
+    durationInput.addEventListener('change', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const seconds = parseDuration(durationInput.value);
+        song.durationSeconds = seconds;
+        durationInput.value = formatDuration(seconds);
+    });
+
+    startBtn.addEventListener('click', startScroll);
+    pauseBtn.addEventListener('click', () => {
+        if (isScrolling) {
+            pauseScroll();
+        } else {
+            startScroll();
+        }
+    });
+    stopBtn.addEventListener('click', stopScroll);
+    topBtn.addEventListener('click', () => {
+        lyricsContainer.scrollTop = 0;
+    });
+
+    applyLyricsBtn.addEventListener('click', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        song.text = lyricsInput.value || '';
+        song.played = false;
+        lyricsText.textContent = song.text;
+        lyricsContainer.scrollTop = 0;
+        renderSongList();
+    });
+
+    // Импорт TXT — поддерживает несколько файлов
+    importTxtBtn.addEventListener('click', () => {
+        txtFileInput.value = '';
+        txtFileInput.click();
+    });
+
+    txtFileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (!files || !files.length) return;
+
+        if (files.length === 1) {
+            // один файл в текущую песню
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target.result || '';
+                lyricsInput.value = text;
+                const song = songs[selectedSongIndex];
+                if (!song) return;
+                song.text = text;
+                song.played = false;
+                lyricsText.textContent = text;
+                lyricsContainer.scrollTop = 0;
+                renderSongList();
+            };
+            reader.readAsText(file, 'UTF-8');
+        } else {
+            // много файлов — создаём отдельную песню для каждого
+            let firstNewIndex = null;
+            const fileArray = Array.from(files);
+            fileArray.forEach((file, idx) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const text = event.target.result || '';
+                    const newIndex = createNewSong();
+                    const song = songs[newIndex];
+                    song.text = text;
+                    const baseName = file.name.replace(/\.[^.]+$/, '');
+                    song.title = baseName || song.title;
+                    song.played = false;
+                    if (firstNewIndex === null) firstNewIndex = newIndex;
+                    renderSongList();
+                    if (idx === fileArray.length - 1 && firstNewIndex !== null) {
+                        selectSong(firstNewIndex);
+                    }
+                };
+                reader.readAsText(file, 'UTF-8');
+            });
+        }
+    });
+
+    exportProjectBtn.addEventListener('click', () => {
+        const data = {
+            version: 2,
+            selectedSongIndex,
+            songs
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'song_prompter_project.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    importProjectBtn.addEventListener('click', () => {
+        projectFileInput.value = '';
+        projectFileInput.click();
+    });
+
+    projectFileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target.result);
+                if (!Array.isArray(json.songs)) {
+                    const msgInvalid = translations[currentLang]?.invalidProject || translations.ru.invalidProject;
+                    alert(msgInvalid);
+                    return;
+                }
+                songs = json.songs.map((s) => ({
+                    ...defaultSong(),
+                    ...s
+                }));
+                if (!songs.length) {
+                    songs.push(defaultSong());
+                }
+                selectedSongIndex = Math.min(json.selectedSongIndex || 0, songs.length - 1);
+                songCounter = songs.length + 1;
+                renderSongList();
+                loadSongIntoUI();
+            } catch (err) {
+                console.error(err);
+                const msgError = translations[currentLang]?.errorReading || translations.ru.errorReading;
+                alert(msgError);
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    });
+
+    // ---------- Хоткеи и полноэкранный режим ----------
+
+    function isEditingElement(target) {
+        const tag = target.tagName;
+        if (!tag) return false;
+        const t = tag.toLowerCase();
+        return t === 'input' || t === 'textarea';
+    }
+
+    function toggleFullScreen() {
+        const doc = document;
+        const docEl = document.documentElement;
+
+        if (!doc.fullscreenElement) {
+            if (docEl.requestFullscreen) docEl.requestFullscreen();
+        } else {
+            if (doc.exitFullscreen) doc.exitFullscreen();
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (isEditingElement(e.target)) return;
+
+        const key = e.key;
+
+        if (key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (isScrolling) {
+                pauseScroll();
+            } else {
+                startScroll();
+            }
+            return;
+        }
+
+        if (key === 'Enter') {
+            e.preventDefault();
+            startScroll();
+            return;
+        }
+
+        if (key === 'f' || key === 'F' || key === 'а' || key === 'А') {
+            e.preventDefault();
+            toggleFullScreen();
+            return;
+        }
+    });
+
+    // ---------- Инициализация ----------
+
+    (function init() {
+        const firstIndex = createNewSong();
+        selectedSongIndex = firstIndex;
+        renderSongList();
+        loadSongIntoUI();
+        // на всякий случай сразу выставим padding снизу под полэкрана
+        applyExtraBottomPadding();
+        // установить язык интерфейса при инициализации
+        try {
+            if (typeof setLanguage === 'function') {
+                if (languageSelect) {
+                    setLanguage(languageSelect.value || currentLang);
+                } else {
+                    setLanguage(currentLang);
+                }
+            }
+        } catch (e) {
+            console.error('Language initialization error', e);
+        }
+    })();
+</script>
+</body>
+</html>
