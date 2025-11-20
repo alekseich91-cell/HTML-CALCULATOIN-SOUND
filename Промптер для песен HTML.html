@@ -315,33 +315,83 @@
             background: #444;
         }
 
-        /* Additional styling for language select, home link, and love note */
-        .language-panel select {
-            width: 100%;
+        /* Viewer-only mode hides sidebars and expands center for second screen */
+        body.viewer-mode #leftSidebar,
+        body.viewer-mode #rightSidebar {
+            display: none;
+        }
+        body.viewer-mode #center {
+            width: 100vw;
+            height: 100vh;
+            padding: 0;
+        }
+        body.viewer-mode #lyricsContainer {
+            border: none;
+        }
+        /* Two-window mode: keep original height for preview in main window */
+        /* Previously the preview text area was limited in height when a second
+           window was opened. The user requested that the preview area should
+           remain full height even when the second screen is active, so we
+           override the rule by not specifying a max-height. */
+        body.two-window-mode #center {
+            max-height: unset;
+        }
+
+        /* Timeline marker rows */
+        .marker-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+        .marker-row select,
+        .marker-row input[type="text"],
+        .marker-row input[type="number"] {
             background: #111;
             border: 1px solid #333;
             color: #fff;
-            border-radius: 4px;
-            padding: 4px 6px;
-            font-family: inherit;
-            font-size: 13px;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 12px;
         }
-        #homeLink {
-            display: block;
-            margin-top: 8px;
-            color: #0af;
-            text-decoration: none;
-            font-size: 13px;
+        .marker-row button {
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 2px 6px;
+            cursor: pointer;
         }
-        #homeLink:hover {
-            text-decoration: underline;
+        .marker-row button:hover {
+            background: #333;
         }
-        #loveNote {
-            margin-top: auto;
-            text-align: center;
-            font-size: 11px;
-            color: #666;
-            padding-top: 10px;
+
+        /* Song trigger rows */
+        .trigger-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+        .trigger-row select,
+        .trigger-row input[type="text"] {
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 12px;
+        }
+        .trigger-row button {
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 2px 6px;
+            cursor: pointer;
+        }
+        .trigger-row button:hover {
+            background: #333;
         }
     </style>
 </head>
@@ -349,15 +399,15 @@
 <div id="app">
     <!-- Левый список песен -->
     <div id="leftSidebar">
+            <a id="homeLink" href="index.html" style="color:#0af; text-decoration:none; font-size:12px; margin-bottom:6px; display:block;">На главную</a>
         <div class="sidebar-header">
-            <span id="songsHeader">Песни</span>
+            <span>Песни</span>
             <button id="addSongBtn" title="Добавить песню">+</button>
         </div>
         <div id="songList"></div>
         <button id="resetPlayedBtn" title="Сбросить отметки проигранных песен">
             Сбросить проигранные
         </button>
-        <a id="homeLink" href="index.html">На главную</a>
     </div>
 
     <!-- Центральная зона с прокручиваемым текстом -->
@@ -369,25 +419,27 @@
 
     <!-- Правый сайдбар с управлением -->
     <div id="rightSidebar">
-        <!-- Language selector panel -->
-        <div class="panel language-panel">
-            <div class="panel-title" id="languagePanelTitle">Язык</div>
-            <select id="languageSelect">
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
-            </select>
-        </div>
+            <!-- Выбор языка -->
+            <div class="panel">
+                <label>
+                    Язык / Language:
+                    <select id="languageSelect">
+                        <option value="ru">Русский</option>
+                        <option value="en">English</option>
+                    </select>
+                </label>
+            </div>
         <!-- Общие настройки песни -->
         <div class="panel">
             <div class="panel-title" id="songPanelTitle">Песня</div>
-            <label>
-                <span id="titleLabel">Название:</span>
+            <label id="songTitleLabel">
+                Название:
                 <input type="text" id="songTitleInput" placeholder="Название песни">
             </label>
             <div class="btn-row">
                 <button id="deleteSongBtn">Удалить песню</button>
             </div>
-            <div class="small-note" id="deleteNote">
+            <div class="small-note" id="songDeleteNote">
                 Удалить можно любую, кроме последней — она будет просто очищена.
             </div>
         </div>
@@ -397,26 +449,34 @@
             <div class="panel-title" id="displayPanelTitle">Отображение</div>
 
             <label>
-                <span id="fontSizeLabelText">Размер шрифта</span>
+                Размер шрифта
                 <span id="fontSizeLabel" class="value-label"></span>
                 <input type="range" id="fontSizeRange" min="16" max="72" step="2">
             </label>
 
             <label>
-                <span id="lineHeightLabelText">Межстрочный интервал</span>
+                Межстрочный интервал
                 <span id="lineHeightLabel" class="value-label"></span>
                 <!-- 1–25 -> 0.1–2.5 -->
                 <input type="range" id="lineHeightRange" min="1" max="25" step="1">
             </label>
 
             <label>
-                <span id="textWidthLabelText">Ширина текста</span>
+                Ширина текста
                 <span id="textWidthLabel" class="value-label"></span>
                 <input type="range" id="textWidthRange" min="40" max="100" step="5">
             </label>
-            <div class="small-note" id="widthNote">
+            <div class="small-note" id="textWidthNote">
                 Регулирует ширину области текста по центру экрана.
             </div>
+            <!-- Выравнивание текста -->
+            <label id="textAlignLabelContainer">
+                <span id="textAlignLabel">Выравнивание</span>
+                <select id="textAlignSelect">
+                    <option value="center" id="textAlignCenterOption">По центру</option>
+                    <option value="left" id="textAlignLeftOption">По левому краю</option>
+                </select>
+            </label>
         </div>
 
         <!-- Прокрутка -->
@@ -425,29 +485,29 @@
             <div class="radio-group">
                 <label>
                     <input type="radio" name="scrollMode" value="speed" checked>
-                    <span id="bySpeedLabel">По скорости</span>
+                    <span id="scrollSpeedModeLabel">По скорости</span>
                 </label>
                 <label>
                     <input type="radio" name="scrollMode" value="duration">
-                    <span id="byDurationLabel">По длительности</span>
+                    <span id="scrollDurationModeLabel">По длительности</span>
                 </label>
             </div>
 
             <div id="speedControls">
                 <label>
-                    <span id="scrollSpeedLabel">Скорость прокрутки</span>
+                    Скорость прокрутки
                     <span id="speedLabel" class="value-label"></span>
-                    <input type="range" id="speedRange" min="1" max="400" step="1">
+                    <input type="range" id="speedRange" min="10" max="400" step="10">
                 </label>
-                <div class="small-note" id="speedNote">Чем больше значение, тем быстрее движется текст.</div>
+                <div class="small-note" id="scrollSpeedNote">Чем больше значение, тем быстрее движется текст.</div>
             </div>
 
             <div id="durationControls" style="display:none;">
                 <label>
-                    <span id="durationLabel">Длительность песни</span>
+                    Длительность песни
                     <input type="text" id="durationInput" placeholder="мм:сс или секунды">
                 </label>
-                <div class="small-note" id="durationExample">Например: <b>3:45</b> или <b>225</b>.</div>
+                <div class="small-note">Например: <b>3:45</b> или <b>225</b>.</div>
             </div>
 
             <div class="btn-row">
@@ -455,9 +515,31 @@
                 <button id="pauseBtn">Пауза / Продолжить (Space)</button>
                 <button id="stopBtn">Стоп</button>
                 <button id="topBtn">В начало</button>
+                <button id="secondScreenBtn">Второй экран</button>
             </div>
             <div class="small-note" id="fullscreenNote">
                 Полноэкранный режим — клавиша <b>F</b> или <b>А</b> (русская раскладка).
+            </div>
+        </div>
+
+        <!-- Таймкод -->
+        <div class="panel" id="timecodePanel">
+            <div class="panel-title" id="timecodePanelTitle">Таймкод</div>
+            <label>
+                <span id="audioInputLabel">Аудио вход:</span>
+                <select id="audioInputSelect"></select>
+            </label>
+            <div id="timecodeClock" style="font-size:20px; text-align:center; margin-top:6px;">00:00:00:00</div>
+        </div>
+
+        <!-- Таймлайн -->
+        <div class="panel" id="timelinePanel">
+            <div class="panel-title" id="timelinePanelTitle">Таймлайн</div>
+            <div id="markersContainer"></div>
+            <div class="btn-row">
+                <button id="addStartMarkerBtn">Добавить старт</button>
+                <button id="addPauseMarkerBtn">Добавить паузу</button>
+                <button id="addSpeedMarkerBtn">Изменить скорость</button>
             </div>
         </div>
 
@@ -486,7 +568,20 @@
                 Экспортирует все песни и настройки в один JSON-файл.
             </div>
         </div>
-        <div id="loveNote">С любовью из России</div>
+
+        <!-- Триггеры песен -->
+        <div class="panel" id="triggersPanel">
+            <div class="panel-title" id="triggersPanelTitle">Привязка песен</div>
+            <div id="triggersContainer"></div>
+            <div class="btn-row">
+                <button id="addTriggerBtn">Добавить привязку</button>
+            </div>
+        </div>
+
+        <!-- Любовная подпись -->
+        <div id="loveNote" style="text-align:center; font-size:11px; color:#666; margin-top:auto;">
+            С любовью из России
+        </div>
     </div>
 </div>
 
@@ -495,10 +590,241 @@
 <input type="file" id="projectFileInput" accept=".json" style="display:none;">
 
 <script>
+    /**
+     * Simple event emitter implementation for the browser.  Each listener
+     * registered with `.on(event, handler)` will be invoked when the
+     * corresponding `.emit(event, ...args)` call happens.  This avoids
+     * depending on Node's built‑in EventEmitter which is not available in
+     * browsers.
+     */
+    class SimpleEventEmitter {
+        constructor() {
+            this._events = {};
+        }
+        /**
+         * Register a handler for the given event name.
+         * @param {string} event
+         * @param {Function} handler
+         */
+        on(event, handler) {
+            if (!this._events[event]) this._events[event] = [];
+            this._events[event].push(handler);
+        }
+        /**
+         * Trigger all handlers associated with the given event name.
+         * @param {string} event
+         * @param  {...any} args
+         */
+        emit(event, ...args) {
+            const handlers = this._events[event];
+            if (handlers) {
+                handlers.forEach((fn) => {
+                    try {
+                        fn(...args);
+                    } catch (e) {
+                        console.error('Event handler error:', e);
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Frame class decodes a sequence of 10 bytes representing a SMPTE timecode
+     * frame into hours, minutes, seconds and frames.  It is adapted from the
+     * linear‑timecode‑js library.  See https://en.wikipedia.org/wiki/Linear_timecode
+     */
+    function Frame(framerate) {
+        this.hours = 0;
+        this.minutes = 0;
+        this.seconds = 0;
+        this.frames = 0;
+        this.framerate = typeof framerate === 'number' ? framerate : 30;
+        this.dropframe = false;
+        this.colorframe = false;
+        this.user_bits = [0, 0, 0, 0, 0, 0, 0, 0];
+        this.polarity_correction = false;
+        /**
+         * Decode an array of 10 bytes (Uint8) into this frame's fields.
+         * @param {Uint8Array} bytes
+         */
+        this.decode = function (bytes) {
+            if (!bytes || bytes.length !== 10) {
+                console.error('Invalid LTC payload size:', bytes && bytes.length);
+                return;
+            }
+            const sync_code = (bytes[9] << 8) | bytes[8];
+            if (sync_code !== 0b1011111111111100) {
+                console.error('Invalid LTC sync code');
+                return;
+            }
+            const frames_units = bytes[0] & 0x0f;
+            const frames_tens = bytes[1] & 0x03;
+            this.frames = frames_tens * 10 + frames_units;
+            const seconds_units = bytes[2] & 0x0f;
+            const seconds_tens = bytes[3] & 0x07;
+            this.seconds = seconds_tens * 10 + seconds_units;
+            const minutes_units = bytes[4] & 0x0f;
+            const minutes_tens = bytes[5] & 0x07;
+            this.minutes = minutes_tens * 10 + minutes_units;
+            const hours_units = bytes[6] & 0x0f;
+            const hours_tens = bytes[7] & 0x03;
+            this.hours = hours_tens * 10 + hours_units;
+            this.dropframe = Boolean((bytes[1] >> 2) & 0x01);
+            this.colorframe = Boolean((bytes[1] >> 3) & 0x01);
+            if (this.framerate === 25) {
+                // PCb is bit 59 at 25fps
+                this.polarity_correction = Boolean((bytes[7] >> 3) & 0x01);
+            } else {
+                // PCb is bit 27 at other fps
+                this.polarity_correction = Boolean((bytes[3] >> 3) & 0x01);
+            }
+        };
+    }
+
+    /**
+     * Decode raw PCM audio samples encoded with Linear Time Code (LTC) into
+     * SMPTE timecode frames.  This implementation is adapted from the
+     * linear‑timecode‑js library and uses a simplified event emitter.  It
+     * supports 24, 25 and 30 fps.  To use it, create a new Decoder with
+     * the audio sample rate and register a 'frame' event listener.
+     *
+     * @param {number} sampleRate - sample rate of the audio data
+     */
+    function Decoder(sampleRate) {
+        // set up emitter behaviour
+        SimpleEventEmitter.call(this);
+        this.rate = sampleRate;
+        this.framerate = 0;
+        this.last_frame = null;
+        this.state = {
+            prev_sample: null,
+            counter: 0,
+            middle_transition: 0,
+            bit_buffer: '',
+        };
+        /**
+         * Decode a chunk of PCM samples.  `samples` should be a Float32Array or
+         * similar, with values normalised between −1 and 1 and centred around
+         * zero (no DC offset).  The decoder maintains internal state across
+         * calls, so sequential calls will accumulate bit timing until a full
+         * LTC frame (80 bits) is parsed.
+         * @param {Float32Array|Array<number>} samples
+         */
+        this.decode = function (samples) {
+            let bit_array = '';
+            // restore state
+            let prev_sample = this.state.prev_sample;
+            let counter = this.state.counter;
+            let middle_transition = this.state.middle_transition;
+            if (prev_sample == null && samples.length > 0) {
+                prev_sample = samples[0];
+            }
+            // iterate through each sample and detect transitions
+            for (let i = 0; i < samples.length; i++) {
+                const sample = samples[i];
+                // maintaining same sign (positive/negative) state
+                if (prev_sample > 0 && sample > 0) {
+                    counter++;
+                } else if (prev_sample < 0 && sample < 0) {
+                    counter++;
+                } else {
+                    // a zero crossing occurred; compute frequency from counter
+                    const freq = this.rate / counter / 2; // freq of state time is twice the bit frequency
+                    if (freq > 900 && freq <= 1560) {
+                        bit_array += '0';
+                    } else if (freq > 1560 && freq < 3000) {
+                        if (middle_transition) {
+                            bit_array += '1';
+                            middle_transition = 0;
+                        } else {
+                            middle_transition = 1;
+                        }
+                    } else {
+                        // invalid frequency; ignore and reset state counters
+                    }
+                    counter = 0;
+                }
+                prev_sample = sample;
+            }
+            // save state
+            this.state.prev_sample = prev_sample;
+            this.state.counter = counter;
+            this.state.middle_transition = middle_transition;
+            // compute approximate framerate from bitrate (80 bits per frame)
+            const bitrate = bit_array.length / (samples.length / this.rate);
+            if (!isNaN(bitrate) && bitrate > 0) {
+                this.framerate = Math.round(bitrate / 80);
+            }
+            // merge new bits into buffer and attempt to parse frames
+            this.state.bit_buffer = this.state.bit_buffer + bit_array;
+            // while there is enough data for a frame, attempt to parse it
+            while (this.state.bit_buffer.length >= 80) {
+                if (!this._parseBits()) {
+                    // if we have two frames worth of data and still no frame, drop one frame
+                    if (this.state.bit_buffer.length > 160) {
+                        this.state.bit_buffer = this.state.bit_buffer.slice(160);
+                    }
+                    break;
+                }
+            }
+        };
+        /**
+         * Internal helper to parse the bit buffer for a valid LTC frame.  If
+         * successful it emits a 'frame' event with a Frame instance and
+         * returns true, otherwise false.  The bit buffer is advanced past
+         * the parsed frame or remains unchanged if no frame is found.
+         * @returns {boolean}
+         */
+        this._parseBits = function () {
+            const bit_string = this.state.bit_buffer;
+            const sync_word_idx = bit_string.indexOf('111111111111');
+            if (sync_word_idx < 0) return false;
+            // check forward direction: preceding bits 00 and following bits 01
+            if (bit_string.substring(sync_word_idx - 2, sync_word_idx) === '00' && bit_string.substring(sync_word_idx + 12, sync_word_idx + 14) === '01') {
+                // convert bits into bytes (10 bytes, reversed bit order)
+                const bytes = [];
+                for (let i = sync_word_idx - 66; i < sync_word_idx + 14; i += 8) {
+                    const bits = bit_string
+                        .substring(i, i + 8)
+                        .split('')
+                        .reverse()
+                        .join('');
+                    const byte = parseInt(bits, 2);
+                    bytes.push(byte);
+                }
+                const frame = new Frame(this.framerate || 25);
+                frame.decode(bytes);
+                this.last_frame = frame;
+                this.emit('frame', frame);
+                // drop parsed bits
+                this.state.bit_buffer = bit_string.slice(sync_word_idx + 14);
+                return true;
+            } else {
+                // unsupported direction; skip this sync pattern
+                return false;
+            }
+        };
+    }
+    // inherit SimpleEventEmitter methods
+    Decoder.prototype = Object.create(SimpleEventEmitter.prototype);
+    Decoder.prototype.constructor = Decoder;
     // ---------- Данные ----------
     let songs = [];
     let selectedSongIndex = 0;
     let songCounter = 1;
+
+    // Глобальные триггеры песен. Каждый объект содержит время (в секундах) и индекс песни.
+    // Когда LTC‑таймкод достигает указанного времени, соответствующая песня автоматически
+    // выбирается и запускается прокрутка.  Поле _triggered используется для того,
+    // чтобы триггер срабатывал только один раз до сброса состояний.
+    let songTriggers = [];
+
+    // Текущий язык интерфейса. Инициализируем по умолчанию русским. Эта переменная
+    // определена заранее, чтобы её можно было безопасно использовать во всех
+    // функциях (например, renderTriggers), которые могут быть вызваны до
+    // раздела локализации.
+    let currentLang = 'ru';
 
     // Прокрутка
     let isScrolling = false;
@@ -524,6 +850,9 @@
     const textWidthRange = document.getElementById('textWidthRange');
     const textWidthLabel = document.getElementById('textWidthLabel');
 
+    // выравнивание текста (select)
+    const textAlignSelect = document.getElementById('textAlignSelect');
+
     const speedRange = document.getElementById('speedRange');
     const speedLabel = document.getElementById('speedLabel');
 
@@ -546,165 +875,6 @@
     const importProjectBtn = document.getElementById('importProjectBtn');
     const projectFileInput = document.getElementById('projectFileInput');
 
-    // ---------- Перевод интерфейса ----------
-    const languageSelect = document.getElementById('languageSelect');
-    const htmlRoot = document.documentElement;
-    let currentLang = 'ru';
-
-    const translations = {
-        ru: {
-            songs: 'Песни',
-            addSongTitle: 'Добавить песню',
-            resetPlayed: 'Сбросить проигранные',
-            resetPlayedTitle: 'Сбросить отметки проигранных песен',
-            song: 'Песня',
-            title: 'Название:',
-            songTitlePlaceholder: 'Название песни',
-            deleteSong: 'Удалить песню',
-            deleteNote: 'Удалить можно любую, кроме последней — она будет просто очищена.',
-            display: 'Отображение',
-            fontSize: 'Размер шрифта',
-            lineHeight: 'Межстрочный интервал',
-            textWidth: 'Ширина текста',
-            widthNote: 'Регулирует ширину области текста по центру экрана.',
-            scroll: 'Прокрутка',
-            bySpeed: 'По скорости',
-            byDuration: 'По длительности',
-            scrollSpeed: 'Скорость прокрутки',
-            speedNote: 'Чем больше значение, тем быстрее движется текст.',
-            duration: 'Длительность песни',
-            durationPlaceholder: 'мм:сс или секунды',
-            durationExample: 'Например: <b>3:45</b> или <b>225</b>.',
-            start: 'Старт (Enter)',
-            pause: 'Пауза / Продолжить (Space)',
-            stop: 'Стоп',
-            toTop: 'В начало',
-            fullscreenNote: 'Полноэкранный режим — клавиша <b>F</b> или <b>А</b> (русская раскладка).',
-            lyrics: 'Текст песни',
-            lyricsPlaceholder: 'Введите текст песни здесь...',
-            updateLyrics: 'Обновить текст',
-            importTxt: 'Импорт TXT',
-            lyricsNote: 'Русский текст поддерживается (UTF-8). Для .doc/.docx лучше предварительно сохранить как .txt.',
-            project: 'Проект',
-            exportProject: 'Экспорт проекта',
-            importProject: 'Импорт проекта',
-            projectNote: 'Экспортирует все песни и настройки в один JSON-файл.',
-            language: 'Язык',
-            home: 'На главную',
-            deleteConfirm: 'Удалить текущую песню?',
-            invalidProject: 'Некорректный файл проекта.',
-            errorReading: 'Ошибка при чтении проекта.',
-            withLove: 'С любовью из России'
-        },
-        en: {
-            songs: 'Songs',
-            addSongTitle: 'Add song',
-            resetPlayed: 'Reset played',
-            resetPlayedTitle: 'Reset played songs',
-            song: 'Song',
-            title: 'Title:',
-            songTitlePlaceholder: 'Song title',
-            deleteSong: 'Delete song',
-            deleteNote: 'You can delete any song except the last one—it will just be cleared.',
-            display: 'Display',
-            fontSize: 'Font size',
-            lineHeight: 'Line spacing',
-            textWidth: 'Text width',
-            widthNote: 'Adjusts the width of the text area in the centre of the screen.',
-            scroll: 'Scroll',
-            bySpeed: 'By speed',
-            byDuration: 'By duration',
-            scrollSpeed: 'Scroll speed',
-            speedNote: 'The higher the value, the faster the text moves.',
-            duration: 'Song duration',
-            durationPlaceholder: 'mm:ss or seconds',
-            durationExample: 'For example: <b>3:45</b> or <b>225</b>.',
-            start: 'Start (Enter)',
-            pause: 'Pause / Resume (Space)',
-            stop: 'Stop',
-            toTop: 'To top',
-            fullscreenNote: 'Fullscreen mode — key <b>F</b> or <b>A</b> (Russian layout).',
-            lyrics: 'Lyrics',
-            lyricsPlaceholder: 'Enter song lyrics here...',
-            updateLyrics: 'Update text',
-            importTxt: 'Import TXT',
-            lyricsNote: 'Russian text is supported (UTF-8). For .doc/.docx it’s better to save as .txt first.',
-            project: 'Project',
-            exportProject: 'Export project',
-            importProject: 'Import project',
-            projectNote: 'Exports all songs and settings to a single JSON file.',
-            language: 'Language',
-            home: 'Home',
-            deleteConfirm: 'Delete current song?',
-            invalidProject: 'Invalid project file.',
-            errorReading: 'Error reading project.',
-            withLove: 'With Love From Russia'
-        }
-    };
-
-    function setLanguage(lang) {
-        currentLang = lang;
-        const t = translations[lang] || translations.ru;
-        htmlRoot.lang = lang;
-        // left sidebar
-        document.getElementById('songsHeader').textContent = t.songs;
-        addSongBtn.title = t.addSongTitle;
-        resetPlayedBtn.textContent = t.resetPlayed;
-        resetPlayedBtn.title = t.resetPlayedTitle;
-        document.getElementById('homeLink').textContent = t.home;
-        // song panel
-        document.getElementById('songPanelTitle').textContent = t.song;
-        document.getElementById('titleLabel').textContent = t.title;
-        songTitleInput.placeholder = t.songTitlePlaceholder;
-        deleteSongBtn.textContent = t.deleteSong;
-        document.getElementById('deleteNote').textContent = t.deleteNote;
-        // display panel
-        document.getElementById('displayPanelTitle').textContent = t.display;
-        document.getElementById('fontSizeLabelText').textContent = t.fontSize;
-        document.getElementById('lineHeightLabelText').textContent = t.lineHeight;
-        document.getElementById('textWidthLabelText').textContent = t.textWidth;
-        document.getElementById('widthNote').textContent = t.widthNote;
-        // scroll panel
-        document.getElementById('scrollPanelTitle').textContent = t.scroll;
-        document.getElementById('bySpeedLabel').textContent = t.bySpeed;
-        document.getElementById('byDurationLabel').textContent = t.byDuration;
-        document.getElementById('scrollSpeedLabel').textContent = t.scrollSpeed;
-        document.getElementById('speedNote').textContent = t.speedNote;
-        document.getElementById('durationLabel').textContent = t.duration;
-        durationInput.placeholder = t.durationPlaceholder;
-        document.getElementById('durationExample').innerHTML = t.durationExample;
-        startBtn.textContent = t.start;
-        pauseBtn.textContent = t.pause;
-        stopBtn.textContent = t.stop;
-        topBtn.textContent = t.toTop;
-        document.getElementById('fullscreenNote').innerHTML = t.fullscreenNote;
-        // lyrics panel
-        document.getElementById('lyricsPanelTitle').textContent = t.lyrics;
-        lyricsInput.placeholder = t.lyricsPlaceholder;
-        applyLyricsBtn.textContent = t.updateLyrics;
-        importTxtBtn.textContent = t.importTxt;
-        document.getElementById('lyricsNote').textContent = t.lyricsNote;
-        // project panel
-        document.getElementById('projectPanelTitle').textContent = t.project;
-        exportProjectBtn.textContent = t.exportProject;
-        importProjectBtn.textContent = t.importProject;
-        document.getElementById('projectNote').textContent = t.projectNote;
-        // language panel
-        document.getElementById('languagePanelTitle').textContent = t.language;
-        // love note
-        document.getElementById('loveNote').textContent = t.withLove;
-    }
-
-    // Apply initial language on load
-    if (languageSelect) {
-        setLanguage(languageSelect.value || currentLang);
-        languageSelect.addEventListener('change', () => {
-            setLanguage(languageSelect.value);
-        });
-    } else {
-        setLanguage(currentLang);
-    }
-
     // ---------- Вспомогательные функции ----------
 
     function defaultSong() {
@@ -715,10 +885,13 @@
             fontSize: 32,
             lineHeight: 0.8,      // дефолт 0.8
             textWidthPercent: 100, // дефолт 100%
+            // выравнивание текста: 'center' или 'left'
+            textAlign: 'center',
             scrollMode: 'speed', // 'speed' или 'duration'
             speed: 30,           // дефолт 30 px/s
             durationSeconds: 0,  // для режима duration
-            played: false
+            played: false,
+            markers: []          // список маркеров для таймлайна
         };
     }
 
@@ -769,6 +942,9 @@
             item.appendChild(controls);
             songListEl.appendChild(item);
         });
+
+        // после отрисовки списка песен обновляем список песен в триггерах
+        renderTriggers();
     }
 
     function moveSong(fromIndex, toIndex) {
@@ -818,6 +994,13 @@
         textWidthRange.value = song.textWidthPercent;
         updateTextWidthDisplay(song.textWidthPercent);
 
+        // выравнивание текста
+        if (!song.textAlign) song.textAlign = 'center';
+        if (textAlignSelect) {
+            textAlignSelect.value = song.textAlign;
+        }
+        lyricsText.style.textAlign = song.textAlign;
+
         // режим прокрутки
         scrollModeRadios.forEach(r => {
             r.checked = (r.value === song.scrollMode);
@@ -831,6 +1014,10 @@
         durationInput.value = formatDuration(song.durationSeconds);
 
         lyricsContainer.scrollTop = 0;
+        // отображаем маркеры для выбранной песни
+        renderMarkers();
+        // синхронизируем второй экран с новым текстом и параметрами
+        syncToViewer();
     }
 
     function updateFontSizeDisplay(size) {
@@ -911,6 +1098,8 @@
         if (isScrolling) return;
         isScrolling = true;
         lastTimestamp = null;
+        // sync viewer before starting scroll so it has the current text and style
+        syncToViewer();
         scrollAnimationId = requestAnimationFrame(stepScroll);
     }
 
@@ -946,9 +1135,6 @@
 
         let deltaScroll = speedPxPerSec * dt;
 
-        // убрали минимальный порог, чтобы низкие скорости были реально медленными
-        if (deltaScroll < 0) deltaScroll = 0;
-
         lyricsContainer.scrollTop += deltaScroll;
 
         if (lyricsContainer.scrollTop >= maxScroll) {
@@ -956,6 +1142,11 @@
             isScrolling = false;
             markSongPlayed(selectedSongIndex);
             return;
+        }
+
+        // синхронизируем второй экран
+        if (viewerWindow && !viewerWindow.closed) {
+            viewerWindow.postMessage({ type: 'scroll', scrollTop: lyricsContainer.scrollTop }, '*');
         }
 
         scrollAnimationId = requestAnimationFrame(stepScroll);
@@ -972,6 +1163,10 @@
     function stopScroll() {
         pauseScroll();
         lyricsContainer.scrollTop = 0;
+        // sync viewer when stopping scroll (reset to top)
+        if (viewerWindow && !viewerWindow.closed) {
+            viewerWindow.postMessage({ type: 'scroll', scrollTop: 0 }, '*');
+        }
     }
 
     // ---------- Обработчики UI ----------
@@ -997,8 +1192,7 @@
             return;
         }
 
-        const msg = translations[currentLang]?.deleteConfirm || translations.ru.deleteConfirm;
-        if (!confirm(msg)) return;
+        if (!confirm('Удалить текущую песню?')) return;
 
         songs.splice(selectedSongIndex, 1);
         selectedSongIndex = Math.min(selectedSongIndex, songs.length - 1);
@@ -1019,6 +1213,8 @@
         const size = parseInt(fontSizeRange.value, 10) || 32;
         song.fontSize = size;
         updateFontSizeDisplay(size);
+        // sync viewer with new font size
+        syncToViewer();
     });
 
     // Межстрочный интервал (1–25 -> 0.1–2.5)
@@ -1029,6 +1225,8 @@
         const lh = value / 10;
         song.lineHeight = lh;
         updateLineHeightDisplay(lh);
+        // sync viewer with new line height
+        syncToViewer();
     });
 
     textWidthRange.addEventListener('input', () => {
@@ -1037,7 +1235,22 @@
         const percent = parseInt(textWidthRange.value, 10) || 100;
         song.textWidthPercent = percent;
         updateTextWidthDisplay(percent);
+        // sync viewer with new text width
+        syncToViewer();
     });
+
+    // Выравнивание текста
+    if (textAlignSelect) {
+        textAlignSelect.addEventListener('change', () => {
+            const song = songs[selectedSongIndex];
+            if (!song) return;
+            const align = textAlignSelect.value || 'center';
+            song.textAlign = align;
+            lyricsText.style.textAlign = align;
+            // sync viewer with new alignment
+            syncToViewer();
+        });
+    }
 
     scrollModeRadios.forEach(radio => {
         radio.addEventListener('change', () => {
@@ -1047,6 +1260,8 @@
             if (!song) return;
             song.scrollMode = mode;
             updateScrollModeUI(mode);
+            // sync viewer with new scroll mode
+            syncToViewer();
         });
     });
 
@@ -1056,6 +1271,8 @@
         const speed = parseInt(speedRange.value, 10) || 30;
         song.speed = speed;
         updateSpeedLabel(speed);
+        // sync viewer with new speed
+        syncToViewer();
     });
 
     durationInput.addEventListener('change', () => {
@@ -1064,6 +1281,8 @@
         const seconds = parseDuration(durationInput.value);
         song.durationSeconds = seconds;
         durationInput.value = formatDuration(seconds);
+        // sync viewer with new duration (affects speed calculation in duration mode)
+        syncToViewer();
     });
 
     startBtn.addEventListener('click', startScroll);
@@ -1077,6 +1296,33 @@
     stopBtn.addEventListener('click', stopScroll);
     topBtn.addEventListener('click', () => {
         lyricsContainer.scrollTop = 0;
+        // sync viewer when jumping to top
+        if (viewerWindow && !viewerWindow.closed) {
+            viewerWindow.postMessage({ type: 'scroll', scrollTop: 0 }, '*');
+        }
+    });
+
+    // при ручной прокрутке синхронизуем второй экран
+    lyricsContainer.addEventListener('scroll', () => {
+        if (viewerWindow && !viewerWindow.closed) {
+            // только пересылаем позицию, стиль не меняется
+            viewerWindow.postMessage({ type: 'scroll', scrollTop: lyricsContainer.scrollTop }, '*');
+        }
+    });
+
+    // Второй экран
+    const secondScreenBtn = document.getElementById('secondScreenBtn');
+    let viewerWindow = null;
+    secondScreenBtn.addEventListener('click', () => {
+        // если уже открыт второй экран, просто сфокусируем
+        if (viewerWindow && !viewerWindow.closed) {
+            viewerWindow.focus();
+            return;
+        }
+        const url = window.location.href.split('?')[0] + '?viewer=1';
+        viewerWindow = window.open(url, '_blank');
+        // добавим класс, чтобы сузить основной экран
+        document.body.classList.add('two-window-mode');
     });
 
     applyLyricsBtn.addEventListener('click', () => {
@@ -1087,6 +1333,8 @@
         lyricsText.textContent = song.text;
         lyricsContainer.scrollTop = 0;
         renderSongList();
+        // синхронизируем второй экран
+        syncToViewer();
     });
 
     // Импорт TXT — поддерживает несколько файлов
@@ -1141,10 +1389,16 @@
     });
 
     exportProjectBtn.addEventListener('click', () => {
+        // Подготавливаем массив триггеров без внутреннего поля _triggered
+        const plainTriggers = songTriggers.map((t) => ({
+            time: t.time,
+            songIndex: t.songIndex
+        }));
         const data = {
-            version: 2,
+            version: 3,
             selectedSongIndex,
-            songs
+            songs,
+            songTriggers: plainTriggers
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1170,8 +1424,7 @@
             try {
                 const json = JSON.parse(event.target.result);
                 if (!Array.isArray(json.songs)) {
-                    const msgInvalid = translations[currentLang]?.invalidProject || translations.ru.invalidProject;
-                    alert(msgInvalid);
+                    alert('Некорректный файл проекта.');
                     return;
                 }
                 songs = json.songs.map((s) => ({
@@ -1183,15 +1436,606 @@
                 }
                 selectedSongIndex = Math.min(json.selectedSongIndex || 0, songs.length - 1);
                 songCounter = songs.length + 1;
+                // загружаем триггеры песен, если они присутствуют
+                songTriggers = Array.isArray(json.songTriggers)
+                    ? json.songTriggers.map((t) => ({ time: t.time || 0, songIndex: t.songIndex || 0, _triggered: false }))
+                    : [];
                 renderSongList();
+                renderTriggers();
+                // Сбрасываем состояния триггеров и перезапускаем таймкод
+                resetTriggerStates();
                 loadSongIntoUI();
+                startTimecode();
             } catch (err) {
                 console.error(err);
-                const msgError = translations[currentLang]?.errorReading || translations.ru.errorReading;
-                alert(msgError);
+                alert('Ошибка при чтении проекта.');
             }
         };
         reader.readAsText(file, 'UTF-8');
+    });
+
+    // ---------- Локализация ----------
+    // currentLang уже объявлен выше. По умолчанию он 'ru'.
+    const languageSelect = document.getElementById('languageSelect');
+    languageSelect.addEventListener('change', () => {
+        currentLang = languageSelect.value;
+        updateUITexts();
+    });
+
+    function updateUITexts() {
+        // левый сайдбар
+        document.getElementById('homeLink').textContent = currentLang === 'ru' ? 'На главную' : 'Home';
+        document.querySelector('#leftSidebar .sidebar-header span').textContent = currentLang === 'ru' ? 'Песни' : 'Songs';
+        addSongBtn.title = currentLang === 'ru' ? 'Добавить песню' : 'Add song';
+        resetPlayedBtn.textContent = currentLang === 'ru' ? 'Сбросить проигранные' : 'Reset played';
+        resetPlayedBtn.title = currentLang === 'ru' ? 'Сбросить отметки проигранных песен' : 'Reset played songs';
+
+        // панель песни
+        document.getElementById('songPanelTitle').textContent = currentLang === 'ru' ? 'Песня' : 'Song';
+        songTitleInput.placeholder = currentLang === 'ru' ? 'Название песни' : 'Song title';
+        deleteSongBtn.textContent = currentLang === 'ru' ? 'Удалить песню' : 'Delete song';
+        document.getElementById('songDeleteNote').textContent = currentLang === 'ru'
+            ? 'Удалить можно любую, кроме последней — она будет просто очищена.'
+            : 'You can delete any song except the last one — it will just be cleared.';
+
+        // настройки отображения
+        document.getElementById('displayPanelTitle').textContent = currentLang === 'ru' ? 'Отображение' : 'Display';
+        // translate labels for ranges
+        const fontLabel = fontSizeRange.closest('label');
+        if (fontLabel) fontLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Размер шрифта ' : 'Font size ';
+        const lhLabel = lineHeightRange.closest('label');
+        if (lhLabel) lhLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Межстрочный интервал ' : 'Line height ';
+        const widthLabel = textWidthRange.closest('label');
+        if (widthLabel) widthLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Ширина текста ' : 'Text width ';
+        document.getElementById('textWidthNote').textContent = currentLang === 'ru'
+            ? 'Регулирует ширину области текста по центру экрана.'
+            : 'Adjusts the width of the text area in the center of the screen.';
+
+        // translate alignment label and options
+        const alignLabelEl = document.getElementById('textAlignLabel');
+        if (alignLabelEl) alignLabelEl.textContent = currentLang === 'ru' ? 'Выравнивание' : 'Alignment';
+        const alignCenterOption = document.getElementById('textAlignCenterOption');
+        if (alignCenterOption) alignCenterOption.textContent = currentLang === 'ru' ? 'По центру' : 'Center';
+        const alignLeftOption = document.getElementById('textAlignLeftOption');
+        if (alignLeftOption) alignLeftOption.textContent = currentLang === 'ru' ? 'По левому краю' : 'Left';
+
+        // прокрутка
+        document.getElementById('scrollPanelTitle').textContent = currentLang === 'ru' ? 'Прокрутка' : 'Scroll';
+        // radio labels
+        const radioLabels = document.querySelectorAll('.radio-group label');
+        if (radioLabels.length >= 2) {
+            // эти тексты обновляются ниже через id
+        }
+        const speedLabel = speedRange.closest('label');
+        if (speedLabel) speedLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Скорость прокрутки ' : 'Scroll speed ';
+        document.getElementById('scrollSpeedNote').textContent = currentLang === 'ru'
+            ? 'Чем больше значение, тем быстрее движется текст.'
+            : 'The larger the value, the faster the text moves.';
+        const durationLabel = durationInput.closest('label');
+        if (durationLabel) durationLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Длительность песни ' : 'Song duration ';
+        document.querySelector('#durationControls .small-note').innerHTML = currentLang === 'ru'
+            ? 'Например: <b>3:45</b> или <b>225</b>.'
+            : 'For example: <b>3:45</b> or <b>225</b>.';
+        startBtn.textContent = currentLang === 'ru' ? 'Старт (Enter)' : 'Start (Enter)';
+        pauseBtn.textContent = currentLang === 'ru' ? 'Пауза / Продолжить (Space)' : 'Pause / Resume (Space)';
+        stopBtn.textContent = currentLang === 'ru' ? 'Стоп' : 'Stop';
+        topBtn.textContent = currentLang === 'ru' ? 'В начало' : 'To top';
+        secondScreenBtn.textContent = currentLang === 'ru' ? 'Второй экран' : 'Second screen';
+        document.getElementById('fullscreenNote').innerHTML = currentLang === 'ru'
+            ? 'Полноэкранный режим — клавиша <b>F</b> или <b>А</b> (русская раскладка).'
+            : 'Fullscreen mode — key <b>F</b>.';
+
+        // обновляем текст меток радиокнопок прокрутки
+        const scrollSpeedModeLabel = document.getElementById('scrollSpeedModeLabel');
+        if (scrollSpeedModeLabel) scrollSpeedModeLabel.textContent = currentLang === 'ru' ? 'По скорости' : 'By speed';
+        const scrollDurationModeLabel = document.getElementById('scrollDurationModeLabel');
+        if (scrollDurationModeLabel) scrollDurationModeLabel.textContent = currentLang === 'ru' ? 'По длительности' : 'By duration';
+
+        // название песни
+        const songTitleLabel = document.getElementById('songTitleLabel');
+        if (songTitleLabel) songTitleLabel.childNodes[0].textContent = currentLang === 'ru' ? 'Название:' : 'Title:';
+
+        // текст песни
+        document.getElementById('lyricsPanelTitle').textContent = currentLang === 'ru' ? 'Текст песни' : 'Lyrics';
+        lyricsInput.placeholder = currentLang === 'ru' ? 'Введите текст песни здесь...' : 'Enter lyrics here...';
+        applyLyricsBtn.textContent = currentLang === 'ru' ? 'Обновить текст' : 'Apply lyrics';
+        importTxtBtn.textContent = currentLang === 'ru' ? 'Импорт TXT' : 'Import TXT';
+        document.getElementById('lyricsNote').innerHTML = currentLang === 'ru'
+            ? 'Русский текст поддерживается (UTF-8).<br>Для .doc/.docx лучше предварительно сохранить как .txt.'
+            : 'Russian text is supported (UTF-8).<br>For .doc/.docx it is better to save as .txt first.';
+
+        // проект
+        document.getElementById('projectPanelTitle').textContent = currentLang === 'ru' ? 'Проект' : 'Project';
+        exportProjectBtn.textContent = currentLang === 'ru' ? 'Экспорт проекта' : 'Export project';
+        importProjectBtn.textContent = currentLang === 'ru' ? 'Импорт проекта' : 'Import project';
+        document.getElementById('projectNote').textContent = currentLang === 'ru'
+            ? 'Экспортирует все песни и настройки в один JSON-файл.'
+            : 'Exports all songs and settings into a single JSON file.';
+
+        // таймкод
+        document.getElementById('timecodePanelTitle').textContent = currentLang === 'ru' ? 'Таймкод' : 'Timecode';
+        document.getElementById('audioInputLabel').textContent = currentLang === 'ru' ? 'Аудио вход:' : 'Audio input:';
+
+        // таймлайн
+        document.getElementById('timelinePanelTitle').textContent = currentLang === 'ru' ? 'Таймлайн' : 'Timeline';
+        document.getElementById('addStartMarkerBtn').textContent = currentLang === 'ru' ? 'Добавить старт' : 'Add start';
+        document.getElementById('addPauseMarkerBtn').textContent = currentLang === 'ru' ? 'Добавить паузу' : 'Add pause';
+        // кнопка добавления изменения скорости
+        const addSpeedBtn = document.getElementById('addSpeedMarkerBtn');
+        if (addSpeedBtn) {
+            addSpeedBtn.textContent = currentLang === 'ru' ? 'Добавить скорость' : 'Add speed change';
+        }
+
+        // подпись
+        document.getElementById('loveNote').textContent = currentLang === 'ru' ? 'С любовью из России' : 'With Love From Russia';
+
+        // триггеры песен
+        const triggersPanelTitle = document.getElementById('triggersPanelTitle');
+        if (triggersPanelTitle) {
+            triggersPanelTitle.textContent = currentLang === 'ru' ? 'Привязка песен' : 'Song triggers';
+        }
+        const addTriggerBtn = document.getElementById('addTriggerBtn');
+        if (addTriggerBtn) {
+            addTriggerBtn.textContent = currentLang === 'ru' ? 'Добавить привязку' : 'Add trigger';
+        }
+
+        // переотрисовываем триггеры для обновления текстов (названия песен, подписи)
+        renderTriggers();
+
+        // обновляем список песен (заголовки меняются динамически)
+        renderSongList();
+    }
+
+    // ---------- Таймкод ----------
+    const audioInputSelect = document.getElementById('audioInputSelect');
+    const timecodeClock = document.getElementById('timecodeClock');
+    let timecodeIntervalId = null;
+    // current SMPTE time in seconds (including fractional part for frames)
+    let timecodeCurrentSeconds = 0;
+    // audio processing variables for LTC decoding
+    let audioContext = null;
+    let analyser = null;
+    let microphoneSource = null;
+    let audioStream = null;
+    // LTC decoder instance (from linear‑timecode‑js)
+    let decoder = null;
+    // timestamp of the last successfully decoded frame (ms)
+    let timecodeLastFrameTimestamp = 0;
+
+    /**
+     * Starts reading a LTC timecode from the selected audio input. The decoder
+     * implemented here does not fully decode LTC bits due to the complexity of
+     * Manchester encoded SMPTE timecode. Instead it estimates whether a valid
+     * LTC signal is present by measuring the RMS (volume) of the incoming
+     * audio signal. When a signal above a configurable threshold is detected
+     * the internal timer advances at 25 frames per second and updates the
+     * displayed timecode and triggers timeline markers. When no signal is
+     * present the clock shows a dash to indicate the absence of LTC.
+     */
+    function startTimecode() {
+        // Stop any previous interval
+        if (timecodeIntervalId) {
+            clearInterval(timecodeIntervalId);
+            timecodeIntervalId = null;
+        }
+        // Reset SMPTE seconds and last frame timestamp
+        timecodeCurrentSeconds = 0;
+        timecodeLastFrameTimestamp = 0;
+        // Reset trigger states so they can fire again
+        resetTriggerStates();
+        // Clean up previous audio context and stream
+        if (audioContext) {
+            try {
+                audioContext.close();
+            } catch (e) {
+                // ignore
+            }
+            audioContext = null;
+        }
+        if (audioStream) {
+            audioStream.getTracks().forEach((t) => t.stop());
+            audioStream = null;
+        }
+        decoder = null;
+        timecodeClock.textContent = '—';
+        // If no media device support, simply show dash
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            timecodeClock.textContent = '—';
+            return;
+        }
+        const selectedDeviceId = audioInputSelect.value;
+        navigator.mediaDevices
+            .getUserMedia({ audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true })
+            .then((stream) => {
+                audioStream = stream;
+                // Create audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                microphoneSource = audioContext.createMediaStreamSource(stream);
+                // Use an analyser node to fetch PCM samples
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                microphoneSource.connect(analyser);
+                // Instantiate LTC decoder
+                decoder = new Decoder(audioContext.sampleRate);
+                // Listen for decoded frames
+                decoder.on('frame', (frame) => {
+                    // Determine total seconds from the SMPTE frame
+                    const fps = decoder.framerate || 25;
+                    timecodeCurrentSeconds =
+                        frame.hours * 3600 + frame.minutes * 60 + frame.seconds + frame.frames / fps;
+                    timecodeLastFrameTimestamp = Date.now();
+                    timecodeClock.textContent = formatTimecode(timecodeCurrentSeconds);
+                    // Check for song triggers first (may change song and speed)
+                    checkSongTriggers();
+                    // Then check per-song markers on the currently selected song
+                    checkTimecodeMarkers();
+                });
+                const data = new Float32Array(analyser.fftSize);
+                // Periodically read samples and feed to decoder
+                timecodeIntervalId = setInterval(() => {
+                    analyser.getFloatTimeDomainData(data);
+                    if (decoder) {
+                        decoder.decode(data);
+                    }
+                    // If no frame has been decoded in the last 500ms, show dash
+                    const now = Date.now();
+                    if (!timecodeLastFrameTimestamp || now - timecodeLastFrameTimestamp > 500) {
+                        timecodeClock.textContent = '—';
+                    }
+                }, 40); // about 25 calls per second
+            })
+            .catch((err) => {
+                console.error(err);
+                timecodeClock.textContent = '—';
+                if (timecodeIntervalId) {
+                    clearInterval(timecodeIntervalId);
+                    timecodeIntervalId = null;
+                }
+            });
+    }
+
+    function pad(n) {
+        return n.toString().padStart(2, '0');
+    }
+
+    function formatTimecode(seconds) {
+        if (seconds == null || seconds < 0) return '00:00:00:00';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const f = Math.floor((seconds - Math.floor(seconds)) * 25);
+        return pad(h) + ':' + pad(m) + ':' + pad(s) + ':' + pad(f);
+    }
+
+    function parseTimecode(str) {
+        if (!str) return 0;
+        str = str.trim();
+        if (!str) return 0;
+        const parts = str.split(':').map(p => p.trim());
+        if (parts.length === 4) {
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            const s = parseInt(parts[2], 10) || 0;
+            const f = parseInt(parts[3], 10) || 0;
+            return h * 3600 + m * 60 + s + f / 25;
+        }
+        if (parts.length === 3) {
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            const s = parseInt(parts[2], 10) || 0;
+            return h * 3600 + m * 60 + s;
+        }
+        if (parts.length === 2) {
+            const m = parseInt(parts[0], 10) || 0;
+            const s = parseInt(parts[1], 10) || 0;
+            return m * 60 + s;
+        }
+        const sec = parseFloat(str.replace(',', '.'));
+        return isNaN(sec) ? 0 : sec;
+    }
+
+    // получение списка аудио устройств (placeholder, devices are not actually used)
+    function populateAudioInputs() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        navigator.mediaDevices.enumerateDevices().then((devices) => {
+            audioInputSelect.innerHTML = '';
+            const inputs = devices.filter(d => d.kind === 'audioinput');
+            inputs.forEach((dev) => {
+                const opt = document.createElement('option');
+                opt.value = dev.deviceId;
+                // if the device label is empty (permission not granted yet), show a generic name
+                opt.textContent = dev.label || (currentLang === 'ru' ? 'Аудио вход' : 'Audio input');
+                audioInputSelect.appendChild(opt);
+            });
+            // if there is at least one device, select the first by default
+            if (inputs.length > 0) {
+                audioInputSelect.selectedIndex = 0;
+            }
+        });
+    }
+
+    audioInputSelect.addEventListener('change', () => {
+        // when the audio input changes, restart the timecode reader with the selected device
+        startTimecode();
+    });
+
+    // ---------- Таймлайн ----------
+    const markersContainer = document.getElementById('markersContainer');
+    const addStartMarkerBtn = document.getElementById('addStartMarkerBtn');
+    const addPauseMarkerBtn = document.getElementById('addPauseMarkerBtn');
+    const addSpeedMarkerBtn = document.getElementById('addSpeedMarkerBtn');
+
+    function renderMarkers() {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        if (!Array.isArray(song.markers)) song.markers = [];
+        // сортируем маркеры по времени
+        song.markers.sort((a, b) => (a.time || 0) - (b.time || 0));
+        markersContainer.innerHTML = '';
+        song.markers.forEach((marker, index) => {
+            const row = document.createElement('div');
+            row.className = 'marker-row';
+            // select type. supports start, pause and speed change
+            const typeSelect = document.createElement('select');
+            const optStart = document.createElement('option');
+            optStart.value = 'start';
+            optStart.textContent = currentLang === 'ru' ? 'Старт' : 'Start';
+            const optPause = document.createElement('option');
+            optPause.value = 'pause';
+            optPause.textContent = currentLang === 'ru' ? 'Пауза' : 'Pause';
+            const optChange = document.createElement('option');
+            optChange.value = 'change';
+            optChange.textContent = currentLang === 'ru' ? 'Изм. скорость' : 'Change speed';
+            typeSelect.appendChild(optStart);
+            typeSelect.appendChild(optPause);
+            typeSelect.appendChild(optChange);
+            typeSelect.value = marker.type || 'start';
+            typeSelect.addEventListener('change', () => {
+                marker.type = typeSelect.value;
+                // при выборе типа старт или смена скорости назначаем текущую скорость по умолчанию
+                if ((marker.type === 'start' || marker.type === 'change') && marker.speed == null) {
+                    marker.speed = songs[selectedSongIndex].speed;
+                }
+                renderMarkers();
+            });
+            row.appendChild(typeSelect);
+            // time input
+            const timeInput = document.createElement('input');
+            timeInput.type = 'text';
+            timeInput.value = formatTimecode(marker.time || 0);
+            timeInput.style.width = '90px';
+            timeInput.addEventListener('change', () => {
+                marker.time = parseTimecode(timeInput.value);
+                song._lastTriggeredIndex = -1;
+                renderMarkers();
+            });
+            row.appendChild(timeInput);
+            // speed input for start and change markers
+            if (marker.type === 'start' || marker.type === 'change') {
+                const speedInput = document.createElement('input');
+                speedInput.type = 'number';
+                speedInput.value = marker.speed != null ? marker.speed : songs[selectedSongIndex].speed;
+                speedInput.style.width = '60px';
+                speedInput.min = 1;
+                speedInput.max = 400;
+                speedInput.step = 1;
+                speedInput.addEventListener('change', () => {
+                    marker.speed = parseFloat(speedInput.value) || 0;
+                });
+                row.appendChild(speedInput);
+            }
+            // remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '✕';
+            removeBtn.title = currentLang === 'ru' ? 'Удалить' : 'Remove';
+            removeBtn.addEventListener('click', () => {
+                song.markers.splice(index, 1);
+                renderMarkers();
+            });
+            row.appendChild(removeBtn);
+            markersContainer.appendChild(row);
+        });
+    }
+
+    addStartMarkerBtn.addEventListener('click', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const marker = {
+            type: 'start',
+            time: timecodeCurrentSeconds || 0,
+            speed: song.speed
+        };
+        song.markers.push(marker);
+        song._lastTriggeredIndex = -1;
+        renderMarkers();
+    });
+    addPauseMarkerBtn.addEventListener('click', () => {
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        const marker = {
+            type: 'pause',
+            time: timecodeCurrentSeconds || 0
+        };
+        song.markers.push(marker);
+        song._lastTriggeredIndex = -1;
+        renderMarkers();
+    });
+
+    // добавление маркера изменения скорости
+    if (addSpeedMarkerBtn) {
+        addSpeedMarkerBtn.addEventListener('click', () => {
+            const song = songs[selectedSongIndex];
+            if (!song) return;
+            const marker = {
+                type: 'change',
+                time: timecodeCurrentSeconds || 0,
+                speed: song.speed
+            };
+            song.markers.push(marker);
+            song._lastTriggeredIndex = -1;
+            renderMarkers();
+        });
+    }
+
+    function checkTimecodeMarkers() {
+        const song = songs[selectedSongIndex];
+        if (!song || !Array.isArray(song.markers) || song.markers.length === 0) return;
+        if (song._lastTriggeredIndex == null) song._lastTriggeredIndex = -1;
+        for (let i = song._lastTriggeredIndex + 1; i < song.markers.length; i++) {
+            const mk = song.markers[i];
+            if (timecodeCurrentSeconds >= (mk.time || 0)) {
+                if (mk.type === 'start') {
+                    // применяем скорость и стартуем прокрутку
+                    song.speed = mk.speed || song.speed;
+                    speedRange.value = song.speed;
+                    updateSpeedLabel(song.speed);
+                    startScroll();
+                } else if (mk.type === 'pause') {
+                    pauseScroll();
+                } else if (mk.type === 'change') {
+                    // изменение скорости без старта/паузы
+                    song.speed = mk.speed || song.speed;
+                    speedRange.value = song.speed;
+                    updateSpeedLabel(song.speed);
+                    // если в данный момент идет прокрутка, новая скорость применяется автоматически
+                }
+                song._lastTriggeredIndex = i;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // ---------- Триггеры песен ----------
+    const triggersContainer = document.getElementById('triggersContainer');
+    const addTriggerBtn = document.getElementById('addTriggerBtn');
+
+    /**
+     * Отрисовывает список триггеров песен. Сортирует триггеры по времени
+     * и создаёт для каждого строки с выбором песни, полем времени и кнопкой удаления.
+     */
+    function renderTriggers() {
+        if (!triggersContainer) return;
+        // сортировка по времени
+        songTriggers.sort((a, b) => (a.time || 0) - (b.time || 0));
+        triggersContainer.innerHTML = '';
+        songTriggers.forEach((trigger, index) => {
+            const row = document.createElement('div');
+            row.className = 'trigger-row';
+            // выпадающий список песен
+            const select = document.createElement('select');
+            songs.forEach((s, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = s.title || (currentLang === 'ru' ? 'Без названия' : 'Untitled');
+                select.appendChild(opt);
+            });
+            select.value = trigger.songIndex;
+            select.addEventListener('change', () => {
+                trigger.songIndex = parseInt(select.value, 10) || 0;
+            });
+            row.appendChild(select);
+            // поле ввода времени
+            const timeInput = document.createElement('input');
+            timeInput.type = 'text';
+            timeInput.value = formatTimecode(trigger.time || 0);
+            timeInput.style.width = '90px';
+            timeInput.addEventListener('change', () => {
+                trigger.time = parseTimecode(timeInput.value);
+                trigger._triggered = false;
+                renderTriggers();
+            });
+            row.appendChild(timeInput);
+            // кнопка удаления
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '✕';
+            removeBtn.title = currentLang === 'ru' ? 'Удалить' : 'Remove';
+            removeBtn.addEventListener('click', () => {
+                songTriggers.splice(index, 1);
+                renderTriggers();
+            });
+            row.appendChild(removeBtn);
+            triggersContainer.appendChild(row);
+        });
+    }
+
+    if (addTriggerBtn) {
+        addTriggerBtn.addEventListener('click', () => {
+            const trigger = {
+                time: timecodeCurrentSeconds || 0,
+                songIndex: selectedSongIndex || 0,
+                _triggered: false
+            };
+            songTriggers.push(trigger);
+            renderTriggers();
+        });
+    }
+
+    /**
+     * Сбрасывает флаг _triggered у всех триггеров, чтобы они могли
+     * сработать снова при повторном воспроизведении или после импорта.
+     */
+    function resetTriggerStates() {
+        songTriggers.forEach((t) => {
+            t._triggered = false;
+        });
+    }
+
+    /**
+     * Проверяет, нужно ли активировать какой‑либо триггер песни. Если время
+     * LTC превышает заданное в триггере, автоматически выбирает соответствующую
+     * песню, сбрасывает её маркеры и запускает прокрутку. Триггер срабатывает
+     * только один раз.
+     */
+    function checkSongTriggers() {
+        for (const trigger of songTriggers) {
+            if (!trigger._triggered && timecodeCurrentSeconds >= (trigger.time || 0)) {
+                trigger._triggered = true;
+                const idx = trigger.songIndex;
+                if (typeof idx === 'number' && songs[idx]) {
+                    selectSong(idx);
+                    // сбрасываем состояние маркеров выбранной песни
+                    if (songs[idx]) songs[idx]._lastTriggeredIndex = -1;
+                    // начинаем прокрутку
+                    startScroll();
+                }
+            }
+        }
+    }
+
+    // ---------- Синхронизация второго экрана ----------
+    function syncToViewer() {
+        if (!viewerWindow || viewerWindow.closed) {
+            document.body.classList.remove('two-window-mode');
+            viewerWindow = null;
+            return;
+        }
+        const song = songs[selectedSongIndex];
+        if (!song) return;
+        viewerWindow.postMessage({
+            type: 'updateSong',
+            text: song.text || '',
+            style: {
+                fontSize: song.fontSize,
+                lineHeight: song.lineHeight,
+                widthPercent: song.textWidthPercent,
+                // передаем выравнивание текста на второй экран
+                textAlign: song.textAlign
+            },
+            scrollTop: lyricsContainer.scrollTop
+        }, '*');
+    }
+
+    // прослушиваем сообщения от viewer
+    window.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data) return;
+        if (data.type === 'viewerReady') {
+            // регистрируем viewer
+            viewerWindow = event.source;
+            document.body.classList.add('two-window-mode');
+            syncToViewer();
+        }
     });
 
     // ---------- Хоткеи и полноэкранный режим ----------
@@ -1251,17 +2095,47 @@
         loadSongIntoUI();
         // на всякий случай сразу выставим padding снизу под полэкрана
         applyExtraBottomPadding();
-        // установить язык интерфейса при инициализации
-        try {
-            if (typeof setLanguage === 'function') {
-                if (languageSelect) {
-                    setLanguage(languageSelect.value || currentLang);
-                } else {
-                    setLanguage(currentLang);
-                }
+        // заполняем список аудио входов
+        populateAudioInputs();
+        // запускаем таймкод
+        startTimecode();
+        // устанавливаем язык согласно select
+        updateUITexts();
+        // отрисовываем список триггеров после установки языка
+        renderTriggers();
+        // если это viewer окно (second screen)
+        const params = new URLSearchParams(window.location.search);
+        const isViewer = params.get('viewer') === '1';
+        if (isViewer) {
+            document.body.classList.add('viewer-mode');
+            // уведомляем родительское окно, что мы готовы
+            if (window.opener) {
+                window.opener.postMessage({ type: 'viewerReady' }, '*');
             }
-        } catch (e) {
-            console.error('Language initialization error', e);
+            // слушаем входящие сообщения
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (!msg) return;
+                if (msg.type === 'updateSong') {
+                    lyricsText.textContent = msg.text || '';
+                    if (msg.style) {
+                        lyricsText.style.fontSize = (msg.style.fontSize || 32) + 'px';
+                        lyricsText.style.lineHeight = msg.style.lineHeight || 0.8;
+                        lyricsContainer.style.maxWidth = (msg.style.widthPercent || 100) + '%';
+                        // применяем выравнивание, если передано
+                        if (msg.style.textAlign) {
+                            lyricsText.style.textAlign = msg.style.textAlign;
+                        }
+                    }
+                    if (typeof msg.scrollTop === 'number') {
+                        lyricsContainer.scrollTop = msg.scrollTop;
+                    }
+                } else if (msg.type === 'scroll') {
+                    if (typeof msg.scrollTop === 'number') {
+                        lyricsContainer.scrollTop = msg.scrollTop;
+                    }
+                }
+            });
         }
     })();
 </script>
