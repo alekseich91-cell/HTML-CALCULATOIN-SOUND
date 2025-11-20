@@ -1,0 +1,2983 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rack RF Designer v2 | Схемы реков и антенн</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!--
+    Rack RF Designer v2
+
+    Эта версия расширяет первоначальную одностраничную верстку, добавляя
+    поддержку дополнительных устройств (антенна, комбайнер, сумматор),
+    возможность создавать соединения перетаскиванием, удалять соединения
+    кликом, учитывать мощность передатчиков и подсчитывать общее
+    количество радиосистем различных типов. Все элементы выполнены в
+    одном файле, чтобы было удобно открыть локально в браузере.
+  -->
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #020617;
+      --panel-inner: #020617;
+      --card-bg: #0f172a;
+      --card-border: #1e293b;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.15);
+      --accent-strong: #0ea5e9;
+      --danger: #f97373;
+      --danger-soft: rgba(248, 113, 113, 0.1);
+      --text: #e5e7eb;
+      --text-soft: #9ca3af;
+      --shadow-soft: 0 20px 40px rgba(15, 23, 42, 0.9);
+      --radius-xl: 18px;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #0b1120 0, #020617 45%, #000 100%);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 100%;
+      margin: 0;
+      padding: 12px 12px 16px;
+      gap: 10px;
+    }
+
+    header.app-header {
+      padding: 8px 14px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(120deg, rgba(15, 23, 42, 0.9), rgba(8, 47, 73, 0.9));
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .app-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-title span.logo-pill {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--accent);
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    /* Counters displayed in the header */
+    .header-counters {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+    .header-counters .counter {
+      padding: 2px 6px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+    }
+
+    .badge-soft {
+      border-radius: 999px;
+      padding: 2px 8px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: rgba(15, 23, 42, 0.85);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-soft .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+    }
+
+    .main-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+      gap: 10px;
+      min-height: 0;
+      width: 100%;
+    }
+
+    @media (max-width: 900px) {
+      .main-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+    }
+
+    .side-panel {
+      background: radial-gradient(circle at top left, #020617 0, #020617 50%, #000 100%);
+      border-radius: var(--radius-xl);
+      padding: 10px 12px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    /* Compact sections using details/summary */
+    .side-section {
+      padding: 0;
+      margin: 0;
+      border-radius: var(--radius-lg);
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(30, 64, 175, 0.4);
+    }
+    .side-section summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e5e7eb;
+    }
+    .side-section summary::-webkit-details-marker {
+      display: none;
+    }
+    .side-section summary span {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-soft);
+    }
+    .side-section .section-content {
+      padding: 0 10px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Device actions for rename/delete */
+    .device-actions {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      display: flex;
+      gap: 4px;
+    }
+    .device-actions button {
+      background: none;
+      border: none;
+      font-size: 12px;
+      color: var(--text-soft);
+      cursor: pointer;
+      padding: 2px;
+      line-height: 1;
+    }
+    .device-actions button:hover {
+      color: var(--accent-strong);
+    }
+
+    /* Triangular antenna shapes */
+    .antenna-shape {
+      width: 0;
+      height: 0;
+      margin: 0 auto;
+      position: relative;
+    }
+    /* Receiving antenna: triangle pointing down */
+    .antenna-rx {
+      border-left: 36px solid transparent;
+      border-right: 36px solid transparent;
+      border-bottom: 60px solid rgba(15, 23, 42, 0.95);
+    }
+    /* Transmitting antenna: triangle pointing up */
+    .antenna-tx {
+      border-left: 36px solid transparent;
+      border-right: 36px solid transparent;
+      border-top: 60px solid rgba(15, 23, 42, 0.95);
+    }
+    .antenna-shape::after {
+      content: '';
+      position: absolute;
+      left: -36px;
+      right: -36px;
+      top: 0;
+      bottom: 0;
+      border-radius: 8px;
+      border: 1px solid rgba(30, 64, 175, 0.6);
+    }
+
+    .side-section {
+      padding: 8px 10px;
+      border-radius: var(--radius-lg);
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(30, 64, 175, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .side-section h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e5e7eb;
+    }
+
+    .side-section h2 span {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-soft);
+    }
+
+    .side-section h2 .emoji {
+      font-size: 14px;
+    }
+
+    .side-section small {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    form.control-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 8px;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .form-row-full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 4px 6px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      background: rgba(15, 23, 42, 0.95);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--accent-strong);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+      background: rgba(15, 23, 42, 1);
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-strong), #22c55e);
+      color: #0b1120;
+      box-shadow: 0 12px 25px rgba(56, 189, 248, 0.35);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-soft);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: #fecaca;
+      border: 1px solid rgba(248, 113, 113, 0.5);
+      box-shadow: 0 10px 20px rgba(248, 113, 113, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 113, 113, 0.2);
+    }
+
+    .btn-small {
+      font-size: 11px;
+      padding: 3px 8px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 4px;
+    }
+
+    .rules-list {
+      margin: 4px 0 0;
+      padding-left: 14px;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .rules-list li {
+      margin-bottom: 2px;
+    }
+
+    .status-bar {
+      margin-top: 4px;
+      padding: 4px 6px;
+      border-radius: var(--radius-md);
+      font-size: 11px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      line-height: 1.25;
+    }
+
+    .status-bar span.icon {
+      font-size: 13px;
+      margin-top: 1px;
+    }
+
+    .status-info {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      color: var(--text-soft);
+    }
+
+    .status-ok {
+      background: rgba(22, 163, 74, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.8);
+      color: #bbf7d0;
+    }
+
+    .status-error {
+      background: var(--danger-soft);
+      border: 1px solid rgba(248, 113, 113, 0.9);
+      color: #fecaca;
+    }
+
+    .tiny-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+    }
+
+    .workspace-panel {
+      background: radial-gradient(circle at top right, #020617 0, #020617 45%, #000 100%);
+      border-radius: var(--radius-xl);
+      padding: 8px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .workspace-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 2px 4px 4px;
+    }
+
+    .workspace-header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .workspace-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    .workspace-subtitle {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .workspace-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .diagram-shell {
+      flex: 1;
+      border-radius: 16px;
+      background: radial-gradient(circle at top, #020617 0, #020617 50%, #020617 100%);
+      border: 1px solid rgba(30, 64, 175, 0.6);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .diagram-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 4px 4px;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .diagram-grid-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .diagram-grid-toggle input {
+      accent-color: var(--accent-strong);
+    }
+
+    /* Wrapper around the diagram that provides a scrollable area to enable panning */
+    #diagram-wrapper {
+      position: relative;
+      flex: 1;
+      overflow: auto;
+      border-radius: 12px;
+      /* Preserve the same background gradient as the diagram itself for visual consistency */
+      background: radial-gradient(circle at top, #0b1120 0, #020617 45%, #000 100%);
+      min-height: 260px;
+    }
+
+    #diagram-wrapper.no-grid {
+      /* When grid is disabled we still want a dark background */
+      background: #020617;
+    }
+
+    /* The diagram itself occupies a very large canvas so that users can place devices freely.
+       We set an explicit width and height here; if you find yourself running out of space,
+       these values can be increased further. */
+    #diagram-container {
+      position: relative;
+      /* Provide a very large area for the user to place devices. If more space is needed
+         these values can be increased further. */
+      width: 5000px;
+      height: 3000px;
+      border-radius: 12px;
+      background-image:
+        linear-gradient(rgba(30, 64, 175, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 64, 175, 0.12) 1px, transparent 1px);
+      background-size: 32px 32px;
+      background-color: radial-gradient(circle at top, #020617 0, #020617 50%, #000 100%);
+      overflow: visible;
+    }
+
+    #diagram-container.no-grid {
+      background-image: none;
+      background-color: #020617;
+    }
+
+    /*
+      Embed a subset of the DejaVu Sans font that contains both Latin and Cyrillic
+      characters. This font will be used for rendering the summary text in the
+      exported PDF via html2canvas. Embedding as a data URI ensures the font is
+      available offline. The subset was generated via fonttools and encoded to
+      WOFF to keep the size manageable.
+    */
+    @font-face {
+      font-family: 'DejaVuSansSubset';
+      /* Load the DejaVuSansSubset font from a local WOFF file. This ensures that
+         Cyrillic and other extended characters render correctly in the browser and
+         when captured via html2canvas for the PDF export. The WOFF file is placed
+         alongside this HTML file in the project directory. */
+      src: url('DejaVuSansSubset.woff') format('woff');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    /* Overlay to display dashed page boundaries on the diagram. This overlay sits on
+       top of the diagram (above devices and connections) but has pointer-events
+       disabled so it doesn’t interfere with clicks or drags. */
+    #page-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .page-boundary-line {
+      position: absolute;
+      pointer-events: none;
+      /* Use an accent color so boundaries stand out against the dark grid */
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+    .page-boundary-vertical {
+      width: 0;
+      border-left: 1px dashed rgba(56, 189, 248, 0.4);
+    }
+    .page-boundary-horizontal {
+      height: 0;
+      border-top: 1px dashed rgba(56, 189, 248, 0.4);
+    }
+
+    #diagram-container.no-grid {
+      background-image: none;
+      background-color: #020617;
+    }
+
+    #device-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+      /* Place devices below connection lines so wires remain clickable */
+      z-index: 2;
+    }
+
+    #connection-layer {
+      position: absolute;
+      inset: 0;
+      /* Do not allow the empty SVG container itself to capture pointer events. Individual paths
+         inside will set their own pointer-events to allow clicking on the stroke. */
+      pointer-events: none;
+      /* Place connection lines above devices; ensures click targets remain accessible */
+      z-index: 3;
+    }
+
+    .device-card {
+      position: absolute;
+      /* Further increase card width so long labels and port names do not overlap */
+      /* Expanded width to allow more ports and longer labels; ensure room for four bottom ports on IEM racks */
+      min-width: 300px;
+      max-width: 400px;
+      background: radial-gradient(circle at top, #020617 0, #020617 55%, #000 100%);
+      border-radius: 14px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+      color: var(--text);
+      user-select: none;
+      cursor: grab;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    }
+
+    /* Larger card size for summator devices to prevent text overlap */
+    .device-card.summator {
+      /* Increase summator size further to accommodate descriptive text and stats */
+      min-width: 360px;
+      max-width: 440px;
+    }
+
+    .device-card:active {
+      cursor: grabbing;
+      transform: scale(1.01);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 1);
+      border-color: rgba(56, 189, 248, 0.7);
+    }
+
+    .device-header {
+      padding: 4px 8px 3px;
+      border-radius: 14px 14px 8px 8px;
+      border-bottom: 1px solid rgba(30, 64, 175, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.9));
+    }
+
+    .device-title {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .device-meta {
+      font-size: 10px;
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+
+    .device-type-pill {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.7);
+      color: var(--accent);
+      background: rgba(15, 23, 42, 0.95);
+      margin-left: 4px;
+    }
+
+    .device-body {
+      padding: 5px 6px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .rack-layout {
+      border-radius: 9px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      background: radial-gradient(circle at top, #020617 0, #020617 60%, #000 100%);
+      padding: 3px 5px;
+      display: grid;
+      gap: 2px;
+    }
+
+    .rack-unit {
+      height: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(30, 64, 175, 0.6);
+      background: linear-gradient(90deg, rgba(15, 23, 42, 0.9), rgba(30, 64, 175, 0.4), rgba(15, 23, 42, 0.9));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rack-unit::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(90deg, rgba(15, 23, 42, 0.9) 0, transparent 15%, transparent 85%, rgba(15, 23, 42, 0.9) 100%);
+      opacity: 0.6;
+    }
+
+    .rack-label-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--text-soft);
+      margin-top: 2px;
+    }
+
+    .device-footer {
+      padding: 0 6px 4px;
+      font-size: 10px;
+      color: var(--text-soft);
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      border-radius: 0 0 14px 14px;
+    }
+
+    .device-footer span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .splitter-body {
+      border-radius: 9px;
+      border: 1px solid rgba(30, 64, 175, 0.8);
+      background: radial-gradient(circle at top, #020617 0, #020617 60%, #000 100%);
+      padding: 4px 5px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 11px;
+    }
+
+    .splitter-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+    .splitter-out-slot {
+      flex: 1 0 45%;
+      padding: 2px 4px;
+      border-radius: 6px;
+      border: 1px dashed rgba(51, 65, 85, 0.9);
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .splitter-out-slot.used {
+      border-style: solid;
+      border-color: rgba(56, 189, 248, 0.8);
+      background: rgba(56, 189, 248, 0.08);
+      color: #bae6fd;
+    }
+
+    .ports {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      /* Increase spacing between ports to accommodate larger port size */
+      gap: 22px;
+      pointer-events: none;
+    }
+
+    .ports-top {
+      /* Adjust to align with even larger ports */
+      top: -18px;
+    }
+
+    .ports-bottom {
+      /* Adjust to align with even larger ports */
+      bottom: -18px;
+    }
+
+    .port {
+      /* Enlarge ports further to improve visibility */
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #020617;
+      border: 2px solid rgba(148, 163, 184, 0.8);
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9);
+      pointer-events: auto;
+      cursor: crosshair;
+      position: relative;
+      /* Ensure ports render above other elements to avoid overlap blocking clicks */
+      z-index: 5;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.1s ease, background 0.12s ease;
+    }
+
+    .port::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border-radius: inherit;
+      background: radial-gradient(circle at center, rgba(148, 163, 184, 0.9), transparent 60%);
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .port:hover {
+      border-color: var(--accent-strong);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
+      transform: scale(1.05);
+    }
+
+    .port-in {
+      border-color: rgba(52, 211, 153, 0.85);
+    }
+
+    .port-out {
+      border-color: rgba(96, 165, 250, 0.9);
+    }
+
+    .port-antenna {
+      border-color: rgba(233, 196, 106, 0.85);
+    }
+
+    .port.selected {
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.7);
+    }
+
+    .port-label {
+      position: absolute;
+      /* Move label further away from port to avoid overlap with larger ports */
+      top: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      /* Increase font size further for better readability */
+      font-size: 12px;
+      color: var(--text-soft);
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    }
+
+    .port-label-bottom {
+      top: auto;
+      bottom: -28px;
+    }
+
+    .connection-line {
+      fill: none;
+      stroke: rgba(96, 165, 250, 0.9);
+      /* Increase stroke width to make lines more visible and easier to click */
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.6));
+      cursor: pointer;
+    }
+
+    .connection-line.cascade {
+      stroke: rgba(248, 250, 252, 0.9);
+      stroke-dasharray: 3 3;
+      filter: drop-shadow(0 0 4px rgba(249, 250, 251, 0.7));
+    }
+
+    .connection-line.combined {
+      stroke: rgba(233, 196, 106, 0.9);
+      stroke-dasharray: 2 2;
+      filter: drop-shadow(0 0 4px rgba(233, 196, 106, 0.7));
+    }
+
+    .footer-note {
+      font-size: 10px;
+      color: var(--text-soft);
+      text-align: right;
+      padding: 0 4px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-title-block">
+        <div class="app-title">
+          Rack RF Designer
+          <span class="logo-pill">v2 · RF + Racks</span>
+        </div>
+        <div class="app-subtitle">
+          Схемы расположения реков, антенных сплиттеров, комбайнеров и каскадирования радиосистем (Shure-style).
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="badge-soft">
+          <span class="dot"></span>
+          <span>Локальный HTML · Открой файл в браузере</span>
+        </div>
+        <div class="header-counters">
+          <span id="count-total-header" class="counter">Всего: 0</span>
+          <span id="count-mic-header" class="counter">Mic: 0</span>
+          <span id="count-iem-header" class="counter">IEM: 0</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-layout">
+      <aside class="side-panel">
+        <!-- Rack section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">📦</span> Рек с радиосистемами <span>(1–8U)</span></summary>
+          <div class="section-content">
+            <small>Ящик с приёмниками или передатчиками. Можно подписать, указать высоту, количество каналов, тип радиосистем (Mic/IEM) и мощность передатчиков.</small>
+            <form id="add-rack-form" class="control-form">
+              <div class="form-row-full">
+                <label for="rack-label">Подпись река</label>
+                <input id="rack-label" type="text" placeholder="Rack 1" />
+              </div>
+              <div>
+                <label for="rack-height">Высота (U)</label>
+                <select id="rack-height">
+                  <option value="1">1U</option>
+                  <option value="2">2U</option>
+                  <option value="3">3U</option>
+                  <option value="4" selected>4U</option>
+                  <option value="5">5U</option>
+                  <option value="6">6U</option>
+                  <option value="7">7U</option>
+                  <option value="8">8U</option>
+                </select>
+              </div>
+              <div>
+                <label for="rack-channels">Каналов</label>
+                <input id="rack-channels" type="number" min="1" value="4" />
+              </div>
+              <div>
+                <label for="rack-type">Тип</label>
+                <select id="rack-type">
+                  <option value="mic" selected>Микрофон</option>
+                  <option value="iem">In‑Ear</option>
+                </select>
+              </div>
+              <div id="rack-power-row">
+                <label for="rack-power">Мощность (мВт)</label>
+                <select id="rack-power">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              <div class="form-row-full">
+                <button type="submit" class="btn btn-primary btn-small">
+                  ➕ Добавить рек
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <!-- Splitter section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">🛰️</span> Антенный сплиттер</summary>
+          <div class="section-content">
+            <small>Источник антенного сигнала (раздаёт RF на реки). Выходы A/B подают RF на один рек.
+            Антенна подключается к входу сплиттера.</small>
+            <form id="add-splitter-form" class="control-form">
+              <div class="form-row-full">
+                <label for="splitter-label">Подпись сплиттера</label>
+                <input id="splitter-label" type="text" placeholder="UA845" />
+              </div>
+              <div>
+                <label for="splitter-outs">Выходов</label>
+                <select id="splitter-outs">
+                  <option value="2">2</option>
+                  <option value="4" selected>4</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+              <div class="form-row-full">
+                <button type="submit" class="btn btn-primary btn-small">
+                  ➕ Добавить сплиттер
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <!-- Antenna section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">📡</span> Антенна</summary>
+          <div class="section-content">
+            <small>Физическая антенна для приёма/передачи. Выберите тип: приёмная (RX) подключается к сплиттеру или приёмному реку, передающая (TX) подключается к выходу IEM (RF OUT или A+B) или к сумматору.</small>
+            <form id="add-antenna-form" class="control-form">
+              <div class="form-row-full">
+                <label for="antenna-label">Подпись антенны</label>
+                <input id="antenna-label" type="text" placeholder="Antenna 1" />
+              </div>
+              <div>
+                <label for="antenna-type">Тип</label>
+                <select id="antenna-type">
+                  <option value="rx" selected>RX (приём)</option>
+                  <option value="tx">TX (передача)</option>
+                </select>
+              </div>
+              <div class="form-row-full">
+                <button type="submit" class="btn btn-primary btn-small">
+                  ➕ Добавить антенну
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+
+        <!-- Summator section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">➕</span> Сумматор RF</summary>
+          <div class="section-content">
+            <small>Пассивный сумматор RF: складывает сигналы с нескольких антенн для подачи на устройство. Хорош для зональных систем.</small>
+            <form id="add-summator-form" class="control-form">
+              <div class="form-row-full">
+                <label for="summator-label">Подпись сумматора</label>
+                <input id="summator-label" type="text" placeholder="RF Sum 2ch" />
+              </div>
+              <div>
+                <label for="summator-ins">Входов</label>
+                <select id="summator-ins">
+                  <option value="2" selected>2</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+              <div class="form-row-full">
+                <button type="submit" class="btn btn-primary btn-small">
+                  ➕ Добавить сумматор
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <!-- Rules section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">📐</span> Правила каскадирования <span>(Shure‑логика)</span></summary>
+          <div class="section-content">
+            <ul class="rules-list">
+              <li>Выход сплиттера → вход река (один выход = один рек).</li>
+              <li>Каскад: выход река → вход другого река (максимум два ящика).</li>
+              <li>Сумматор: входы подключаются к антеннам, выход — к сплиттеру или TX‑антенне.</li>
+              <li>Антенна RX соединяется со сплиттером или приёмным реком; антенна TX — с выходом IEM (RF OUT или A+B) либо с сумматором.</li>
+              <li>Один вход не может быть подключён к двум источникам.</li>
+            </ul>
+            <div id="status-bar" class="status-bar status-info">
+              <span class="icon">ℹ️</span>
+              <div>
+                Кликни по порту, затем по другому — или удерживай и перетащи линию, чтобы создать соединение. Клик по линии удалит её.
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Counters section -->
+        <!-- Counters are now shown in the header; removed from side panel -->
+
+        <!-- Export section -->
+        <details class="side-section" open>
+          <summary><span class="emoji">🧾</span> Экспорт и управление</summary>
+          <div class="section-content">
+            <div class="btn-group">
+              <button id="export-pdf-btn" class="btn btn-primary btn-small" type="button">
+                📄 Экспорт схемы в PDF
+              </button>
+              <button id="reset-btn" class="btn btn-danger btn-small" type="button">
+                🗑️ Очистить все
+              </button>
+            </div>
+            <small>PDF экспортирует видимую область схемы. Перемести элементы и отмасштабируй окно перед экспортом.</small>
+
+            <!-- Project save/load controls -->
+            <div class="btn-group">
+              <button id="save-json-btn" class="btn btn-secondary btn-small" type="button">
+                💾 Сохранить проект
+              </button>
+              <button id="load-json-btn" class="btn btn-secondary btn-small" type="button">
+                📂 Импорт проекта
+              </button>
+              <!-- Hidden file input for import -->
+              <input id="load-json-input" type="file" accept=".json" style="display:none;" />
+            </div>
+            <small>Сохранение сохраняет устройства и соединения в файл JSON. Импорт позволяет восстановить схему из файла.</small>
+          </div>
+        </details>
+
+        <div class="footer-note">
+          Made with ♥ by AI & Lunik · Telegram: @lunevilia
+        </div>
+      </aside>
+
+      <section class="workspace-panel">
+        <div class="workspace-header">
+          <div class="workspace-header-left">
+            <div class="workspace-title">Поле схемы реков</div>
+            <div class="workspace-subtitle">
+              Перетаскивай ящики и устройства, соединяй порты, контролируй каскады и сумматоры.
+            </div>
+          </div>
+          <div class="workspace-actions">
+            <span class="tiny-label">Сетка</span>
+            <label class="diagram-grid-toggle">
+              <input id="grid-toggle" type="checkbox" checked />
+              <span>Показать</span>
+            </label>
+            <button id="hint-btn" class="btn btn-ghost btn-small" type="button">
+              ❔ Помощь
+            </button>
+          </div>
+        </div>
+
+        <div class="diagram-shell">
+          <div class="diagram-header">
+            <div>
+              <span class="tiny-label">Схема</span>
+              &nbsp;Кликай по порту или удерживай и перетаскивай для соединения. Соединения кликом удаляются.
+            </div>
+          </div>
+
+        <!-- Wrap the diagram container in a scrollable wrapper to allow panning over an effectively infinite canvas -->
+        <div id="diagram-wrapper" class="diagram-wrapper">
+          <div id="diagram-container">
+            <svg id="connection-layer"></svg>
+            <div id="device-layer"></div>
+            <!-- Overlay for dashed page boundaries; this overlay is populated dynamically in JS -->
+            <div id="page-overlay"></div>
+          </div>
+        </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- html2pdf для экспорта в PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Дополнительные библиотеки для PDF-экспорта: jsPDF (UMD) и html2canvas -->
+  <!-- Эти скрипты подгружают глобальные объекты window.jspdf и window.html2canvas для стабильной работы экспорта -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>
+    (function () {
+      let devices = [];
+      let connections = [];
+      let deviceCounter = 1;
+      let connectionCounter = 1;
+      let pendingPort = null;
+      let dragState = null;
+      // State for panning the diagram by dragging on empty space
+      let isPanning = false;
+      let panStartX = 0;
+      let panStartY = 0;
+      let panStartScrollLeft = 0;
+      let panStartScrollTop = 0;
+      let dragConnection = null;
+
+      const diagramContainer = document.getElementById('diagram-container');
+      // Scrollable wrapper that allows panning the diagram
+      const diagramWrapper = document.getElementById('diagram-wrapper');
+      const deviceLayer = document.getElementById('device-layer');
+      const connectionLayer = document.getElementById('connection-layer');
+      const statusBar = document.getElementById('status-bar');
+      // Overlay container for drawing page boundary lines
+      const pageOverlay = document.getElementById('page-overlay');
+
+      const addRackForm = document.getElementById('add-rack-form');
+      const addSplitterForm = document.getElementById('add-splitter-form');
+      const addAntennaForm = document.getElementById('add-antenna-form');
+      const addSummatorForm = document.getElementById('add-summator-form');
+      const exportPdfBtn = document.getElementById('export-pdf-btn');
+      const resetBtn = document.getElementById('reset-btn');
+      const gridToggle = document.getElementById('grid-toggle');
+      const hintBtn = document.getElementById('hint-btn');
+      // Save/Load project controls
+      const saveJsonBtn = document.getElementById('save-json-btn');
+      const loadJsonBtn = document.getElementById('load-json-btn');
+      const loadJsonInput = document.getElementById('load-json-input');
+      // Counters displayed in header
+      const countTotalSpan = document.getElementById('count-total-header');
+      const countMicSpan = document.getElementById('count-mic-header');
+      const countIemSpan = document.getElementById('count-iem-header');
+
+      // Toggle rack power field visibility based on selected rack type
+      const rackTypeSelect = document.getElementById('rack-type');
+      const rackPowerRow = document.getElementById('rack-power-row');
+      function updateRackPowerVisibility() {
+        if (!rackTypeSelect || !rackPowerRow) return;
+        if (rackTypeSelect.value === 'mic') {
+          rackPowerRow.style.display = 'none';
+        } else {
+          rackPowerRow.style.display = '';
+        }
+      }
+      if (rackTypeSelect && rackPowerRow) {
+        rackTypeSelect.addEventListener('change', updateRackPowerVisibility);
+        updateRackPowerVisibility();
+      }
+
+      function setStatus(message, type) {
+        statusBar.textContent = '';
+        statusBar.className = 'status-bar';
+        let icon = 'ℹ️';
+        if (type === 'ok') {
+          statusBar.classList.add('status-ok');
+          icon = '✅';
+        } else if (type === 'error') {
+          statusBar.classList.add('status-error');
+          icon = '⛔';
+        } else {
+          statusBar.classList.add('status-info');
+          icon = 'ℹ️';
+        }
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'icon';
+        iconSpan.textContent = icon;
+        const textDiv = document.createElement('div');
+        textDiv.textContent = message;
+        statusBar.appendChild(iconSpan);
+        statusBar.appendChild(textDiv);
+      }
+
+      // Device creation functions
+      function createDevice(type, props) {
+        const id = 'dev_' + deviceCounter++;
+        const baseX = 40 + (devices.length % 3) * 190;
+        const baseY = 40 + Math.floor(devices.length / 3) * 150;
+        const device = Object.assign({ id, type, x: baseX, y: baseY }, props || {});
+        devices.push(device);
+        renderDevices();
+        updateCounters();
+        switch (type) {
+          case 'rack':
+            setStatus('Рек "' + device.label + '" добавлен.', 'ok');
+            break;
+          case 'splitter':
+            setStatus('Сплиттер "' + device.label + '" добавлен.', 'ok');
+            break;
+          case 'ant-rx':
+            setStatus('Антенна RX "' + device.label + '" добавлена.', 'ok');
+            break;
+          case 'ant-tx':
+            setStatus('Антенна TX "' + device.label + '" добавлена.', 'ok');
+            break;
+          case 'summator':
+            setStatus('Сумматор "' + device.label + '" добавлен.', 'ok');
+            break;
+        }
+      }
+
+      function onAddRack(e) {
+        e.preventDefault();
+        const label = document.getElementById('rack-label').value.trim() || 'Rack ' + deviceCounter;
+        const height = parseInt(document.getElementById('rack-height').value, 10) || 4;
+        const channels = parseInt(document.getElementById('rack-channels').value, 10) || 4;
+        const rackType = document.getElementById('rack-type').value;
+        let power = parseInt(document.getElementById('rack-power').value, 10) || 10;
+        // Microphone racks have no transmit power
+        if (rackType === 'mic') {
+          power = 0;
+        }
+        createDevice('rack', { label, height, channels, rackType, power });
+      }
+
+      function onAddSplitter(e) {
+        e.preventDefault();
+        const label = document.getElementById('splitter-label').value.trim() || 'Splitter ' + deviceCounter;
+        const outputs = parseInt(document.getElementById('splitter-outs').value, 10) || 4;
+        createDevice('splitter', { label, outputs });
+      }
+
+      function onAddAntenna(e) {
+        e.preventDefault();
+        const label = document.getElementById('antenna-label').value.trim() || 'Antenna ' + deviceCounter;
+        const type = document.getElementById('antenna-type').value;
+        const devType = type === 'tx' ? 'ant-tx' : 'ant-rx';
+        createDevice(devType, { label });
+      }
+
+      // Removed onAddCombiner: combiner devices are no longer separately added. The logic is now handled within IEM racks.
+
+      function onAddSummator(e) {
+        e.preventDefault();
+        const label = document.getElementById('summator-label').value.trim() || 'Sum ' + deviceCounter;
+        const ins = parseInt(document.getElementById('summator-ins').value, 10) || 2;
+        createDevice('summator', { label, inputs: ins });
+      }
+
+      // Create port element
+      function createPortElement(deviceId, portType, portIndex, label) {
+        const port = document.createElement('div');
+        port.classList.add('port');
+        port.dataset.deviceId = deviceId;
+        port.dataset.portType = portType;
+        port.dataset.portIndex = String(portIndex);
+        // Add specific classes
+        if (portType.endsWith('in')) {
+          port.classList.add('port-in');
+        } else if (portType.endsWith('out')) {
+          port.classList.add('port-out');
+        }
+        // Mark antenna ports for special styling
+        if (portType === 'antenna' || portType.startsWith('ant-')) {
+          port.classList.add('port-antenna');
+        }
+        if (label) {
+          const lblDiv = document.createElement('div');
+          /*
+           * Place port labels either above or below the port.  By default
+           * input ports (ending with "in") have their labels above the port
+           * and output ports (ending with "out") have labels below.  For
+           * the special case of IEM summation inputs ("iem‑sum‑in"), the
+           * default position overlaps with the power indicator text on the
+           * rack.  To avoid this, force the label to be drawn below the
+           * port by applying the `port‑label‑bottom` class.  See
+           * user feedback: labels for the A/B inputs should not cover
+           * the mW indicator.
+           */
+          const needsBottom = !portType.endsWith('in') || portType === 'iem-sum-in';
+          lblDiv.className = 'port-label' + (needsBottom ? ' port-label-bottom' : '');
+          lblDiv.textContent = label;
+          port.appendChild(lblDiv);
+        }
+        // For connecting: we set mousedown to start drag and click to connect
+        port.addEventListener('mousedown', onPortMouseDown);
+        port.addEventListener('click', onPortClick);
+        return port;
+      }
+
+      // Escape HTML helper
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, function (m) {
+          return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          }[m];
+        });
+      }
+
+      // Compute power output of a rack (own transmitters)
+      function rackOwnPower(rack) {
+        if (!rack) return 0;
+        // Microphone racks do not generate RF power, only IEM racks do.
+        const rType = rack.rackType || 'mic';
+        if (rType === 'mic') {
+          return 0;
+        }
+        return (rack.channels || 0) * (rack.power || 0);
+      }
+
+      // Recursively compute total power leaving a device via its output port
+      function computeDevicePower(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (!device) return 0;
+        if (device.type === 'rack') {
+          const rType = device.rackType || 'mic';
+          // Microphone racks have no RF output power
+          if (rType === 'mic') {
+            return 0;
+          }
+          // IEM rack: output RF power comes only from its own transmitters. Inputs to the internal passive summator (iem-sum-in)
+          // do not feed the active combiner, therefore we ignore them here.
+          return rackOwnPower(device);
+        }
+        if (device.type === 'summator') {
+          // Passive RF summator: combine all input powers and apply a fixed -3 dB loss (divide by two),
+          // regardless of the number of inputs. This models a passive combiner that halves the power.
+          const ins = connections.filter(c => c.toDeviceId === deviceId && c.toType === 'summator-in');
+          if (ins.length === 0) return 0;
+          let sum = 0;
+          ins.forEach(conn => {
+            // Use computePortPower for accurate per-port power
+            sum += computePortPower(conn.fromDeviceId, conn.fromType, conn.fromIndex);
+          });
+          return sum / 2;
+        }
+        if (device.type === 'splitter') {
+          // RF splitter: average the power from its antenna inputs (A/B). This models the splitter distributing power evenly.
+          const ins = connections.filter(c => c.toDeviceId === deviceId && c.toType === 'splitter-in');
+          if (ins.length === 0) return 0;
+          let sum = 0;
+          ins.forEach(conn => {
+            sum += computePortPower(conn.fromDeviceId, conn.fromType, conn.fromIndex);
+          });
+          return sum / ins.length;
+        }
+        if (device.type === 'ant-rx') {
+          // Receiving antenna: no internal power and no input
+          return 0;
+        }
+        if (device.type === 'ant-tx') {
+          // Transmitting antenna: sum all input port powers and divide by number of inputs.
+          const ins = connections.filter(c => c.toDeviceId === deviceId && c.toType === 'ant-tx-in');
+          if (ins.length === 0) return 0;
+          let sum = 0;
+          ins.forEach(conn => {
+            sum += computePortPower(conn.fromDeviceId, conn.fromType, conn.fromIndex);
+          });
+          return sum / ins.length;
+        }
+        if (device.type === 'antenna') {
+          // Fallback generic antenna: treat as pass-through
+          const inConn = connections.find(c => c.toDeviceId === deviceId && c.toType === 'antenna');
+          if (inConn) {
+            return computeDevicePower(inConn.fromDeviceId);
+          }
+          return 0;
+        }
+        return 0;
+      }
+
+      // Compute the RF power present on a specific output port of a device. This is used for accurate power
+      // calculations when signals pass through summators, splitters and IEM racks. For input ports or
+      // ports with no RF output, this returns 0. Port type and index must match exactly the port on
+      // the connection. If no special handling exists, this falls back to computeDevicePower.
+      function computePortPower(deviceId, portType, portIndex) {
+        const device = devices.find(d => d.id === deviceId);
+        if (!device) return 0;
+        // Rack ports
+        if (device.type === 'rack') {
+          const rType = device.rackType || 'mic';
+          if (rType === 'mic') {
+            // Microphone racks only cascade RF; they do not generate RF power.
+            // Their rack-out port has no RF power; thus return 0.
+            return 0;
+          }
+          // IEM racks
+          if (portType === 'iem-rf-out') {
+            // Active combiner output: own transmitters only.
+            return rackOwnPower(device);
+          }
+          if (portType === 'iem-sum-out') {
+            // Passive summator output (A+B Out): combine all inputs and apply a -3 dB insertion loss (divide by two),
+            // regardless of the number of input ports.
+            const ins = connections.filter(c => c.toDeviceId === deviceId && c.toType === 'iem-sum-in');
+            if (ins.length === 0) return 0;
+            let sum = 0;
+            ins.forEach(conn => {
+              sum += computePortPower(conn.fromDeviceId, conn.fromType, conn.fromIndex);
+            });
+            return sum / 2;
+          }
+          // Other rack ports (rack-in, rack-out, iem-sum-in) are inputs and thus have no RF output.
+          return 0;
+        }
+        // Splitter ports
+        if (device.type === 'splitter') {
+          if (portType === 'splitter-out') {
+            // Each output of the splitter gets the average of its antenna inputs.
+            return computeDevicePower(deviceId);
+          }
+          // Splitter inputs do not generate power.
+          return 0;
+        }
+        // Summator ports
+        if (device.type === 'summator') {
+          if (portType === 'summator-out') {
+            // Output of the summator is average of its inputs.
+            return computeDevicePower(deviceId);
+          }
+          return 0;
+        }
+        // Antennas
+        if (device.type === 'ant-rx') {
+          // Receiving antennas have no RF output (they supply signal to devices). Return 0.
+          return 0;
+        }
+        if (device.type === 'ant-tx') {
+          // TX antenna input port is not an output; return 0.
+          return 0;
+        }
+        // Fallback: use device-level power (for legacy or undefined ports)
+        return computeDevicePower(deviceId);
+      }
+
+      /**
+       * Recursively compute the total root transmitter power feeding into a given port.
+       * This function walks upstream through passive summators and splitters until it
+       * reaches the active outputs of IEM racks (iem-rf-out), summing the native
+       * transmitter powers along the way. It ignores mic racks and other device types.
+       * @param {string} deviceId - The ID of the device the port belongs to
+       * @param {string} portType - The type of the port (e.g. 'iem-rf-out', 'iem-sum-out', 'summator-out')
+       * @param {number} portIndex - The index of the port on the device
+       * @param {Object} visited - An accumulator object to track visited nodes and avoid cycles
+       * @returns {number} The sum of all active transmitter powers upstream of this port
+       */
+      function computeRootActivePower(deviceId, portType, portIndex, visited) {
+        visited = visited || {};
+        const key = deviceId + '|' + portType + '|' + portIndex;
+        if (visited[key]) return 0;
+        visited[key] = true;
+        const device = devices.find(d => d.id === deviceId);
+        if (!device) return 0;
+        // Handle IEM racks: root active power originates from their RF Out port
+        if (device.type === 'rack') {
+          const rType = device.rackType || 'mic';
+          if (rType === 'iem') {
+            if (portType === 'iem-rf-out') {
+              // Active combiner output: start of chain, return own transmit power
+              return rackOwnPower(device);
+            }
+            if (portType === 'iem-sum-out') {
+              // Passive summator: propagate upstream to its inputs
+              let sum = 0;
+              connections.forEach(conn => {
+                if (conn.toDeviceId === deviceId && conn.toType === 'iem-sum-in') {
+                  sum += computeRootActivePower(conn.fromDeviceId, conn.fromType, conn.fromIndex, visited);
+                }
+              });
+              return sum;
+            }
+          }
+          // Other rack port types do not contribute root power
+          return 0;
+        }
+        // Handle summator devices: propagate upstream to all inputs
+        if (device.type === 'summator') {
+          if (portType === 'summator-out') {
+            let sum = 0;
+            connections.forEach(conn => {
+              if (conn.toDeviceId === deviceId && conn.toType === 'summator-in') {
+                sum += computeRootActivePower(conn.fromDeviceId, conn.fromType, conn.fromIndex, visited);
+              }
+            });
+            return sum;
+          }
+          return 0;
+        }
+        // Handle splitters: treat as pass-through of RF power from their antenna inputs
+        if (device.type === 'splitter' && portType === 'splitter-out') {
+          const ins = connections.filter(c => c.toDeviceId === deviceId && c.toType === 'splitter-in');
+          if (ins.length === 0) return 0;
+          let sum = 0;
+          ins.forEach(conn => {
+            sum += computeRootActivePower(conn.fromDeviceId, conn.fromType, conn.fromIndex, visited);
+          });
+          // Splitting divides power evenly among outputs; distribute accordingly
+          return sum / ins.length;
+        }
+        // Other device types or port types do not propagate root active power
+        return 0;
+      }
+
+      // Get rack feed info string for UI
+      function getRackFeedInfo(rackId) {
+        const conn = connections.find(c => c.toDeviceId === rackId && c.toType === 'rack-in');
+        const rack = devices.find(d => d.id === rackId);
+        if (!rack) return '';
+        const inputPower = conn ? computeDevicePower(conn.fromDeviceId) : 0;
+        let info = '';
+        if (!conn) {
+          info = 'RF не подключен';
+        } else if (conn.fromType === 'splitter-out') {
+          const split = devices.find(d => d.id === conn.fromDeviceId);
+          const idx = (conn.fromIndex || 0) + 1;
+          info = 'от ' + (split ? split.label : 'Splitter') + ' · OUT ' + idx;
+        } else if (conn.fromType === 'rack-out') {
+          const srcRack = devices.find(d => d.id === conn.fromDeviceId);
+          info = 'каскад от ' + (srcRack ? srcRack.label : 'Rack');
+        } else if (conn.fromType === 'summator-out') {
+          const dev = devices.find(d => d.id === conn.fromDeviceId);
+          info = 'от ' + (dev ? dev.label : 'Sum');
+        } else if (conn.fromType === 'ant-rx-out' || conn.fromType === 'antenna') {
+          const ant = devices.find(d => d.id === conn.fromDeviceId);
+          info = 'от ' + (ant ? ant.label : 'Antenna');
+        }
+        const ownPower = rackOwnPower(rack);
+        const totalPower = ownPower; // For UI we show own power; combined output shown in card meta
+        return info;
+      }
+
+      // Count how many outputs of splitter are used
+      function isSplitterOutputUsed(splitterId, outIndex) {
+        return connections.some(c => c.fromDeviceId === splitterId && c.fromType === 'splitter-out' && c.fromIndex === outIndex);
+      }
+
+      function countSplitterUsedOutputs(splitterId) {
+        const used = new Set();
+        connections.forEach(c => {
+          if (c.fromDeviceId === splitterId && c.fromType === 'splitter-out') used.add(c.fromIndex);
+        });
+        return used.size;
+      }
+
+
+      function countSummatorUsedInputs(summatorId) {
+        const used = new Set();
+        connections.forEach(c => {
+          if (c.toDeviceId === summatorId && c.toType === 'summator-in') used.add(c.toIndex);
+        });
+        return used.size;
+      }
+
+      // Render all devices and their ports
+      function renderDevices() {
+        deviceLayer.innerHTML = '';
+        devices.forEach(device => {
+        const card = document.createElement('div');
+        card.classList.add('device-card');
+        // Add type-specific class for styling (e.g., summator)
+        card.classList.add(device.type);
+          card.dataset.id = device.id;
+          card.style.left = (device.x || 40) + 'px';
+          card.style.top = (device.y || 40) + 'px';
+
+          let headerHtml = '';
+          let bodyHtml = '';
+          let footerHtml = '';
+
+          if (device.type === 'rack') {
+            const height = device.height || 4;
+            const channels = device.channels || 4;
+            const rackType = device.rackType || 'mic';
+            const power = device.power || 10;
+            headerHtml = `
+              <div class="device-header">
+                <div class="device-title">${escapeHtml(device.label || 'Rack')}</div>
+                <div class="device-meta">${height}U · ${channels}ch</div>
+              </div>
+            `;
+
+            let units = '';
+            for (let i = 0; i < height; i++) {
+              units += '<div class="rack-unit"></div>';
+            }
+            const labelLine = `
+              <div class="rack-label-line">
+                <span>${rackType === 'mic' ? 'Mic' : 'IEM'}</span>
+                <span>${rackType === 'iem' ? power + ' мВт' : ''}</span>
+                <span>${channels} каналов</span>
+              </div>
+            `;
+            bodyHtml = `
+              <div class="device-body">
+                <div class="rack-layout">
+                  ${units}
+                </div>
+                ${labelLine}
+              </div>
+            `;
+            // Footer: different display for mic and IEM racks
+            let feedInfo = '';
+            if (rackType === 'mic') {
+              feedInfo = getRackFeedInfo(device.id);
+              footerHtml = `
+                <div class="device-footer">
+                  <span>${feedInfo}</span>
+                  <span>RF Out</span>
+                </div>
+              `;
+            } else {
+              // IEM: show number of inputs used and aggregated output label
+              const usedIn = connections.filter(c => c.toDeviceId === device.id && c.toType === 'iem-sum-in').length;
+              footerHtml = `
+                <div class="device-footer">
+                  <span>${usedIn}/2 входов</span>
+                  <span>A+B Out</span>
+                </div>
+              `;
+            }
+          } else if (device.type === 'splitter') {
+            const outputs = device.outputs || 4;
+            headerHtml = `
+              <div class="device-header">
+                <div class="device-title">${escapeHtml(device.label || 'Splitter')}</div>
+                <div class="device-meta">2 ANT · ${outputs} вых.</div>
+              </div>
+            `;
+            let slots = '';
+            for (let i = 0; i < outputs; i++) {
+              const used = isSplitterOutputUsed(device.id, i);
+              slots += `<div class="splitter-out-slot${used ? ' used' : ''}">OUT ${i + 1}${used ? ' · занято' : ''}</div>`;
+            }
+            bodyHtml = `
+              <div class="device-body">
+                <div class="splitter-body">
+                  <div>Антенный сплиттер</div>
+                  <div class="splitter-grid">
+                    ${slots}
+                  </div>
+                </div>
+              </div>
+            `;
+            const usedCount = countSplitterUsedOutputs(device.id);
+            footerHtml = `
+              <div class="device-footer">
+                <span>${usedCount}/${device.outputs} выходов в работе</span>
+                <span>A/B → Racks</span>
+              </div>
+            `;
+          } else if (device.type === 'ant-rx' || device.type === 'ant-tx') {
+            // Receiving or transmitting antenna
+            headerHtml = `
+              <div class="device-header">
+                <div class="device-title">${escapeHtml(device.label || (device.type === 'ant-rx' ? 'Ant RX' : 'Ant TX'))}</div>
+                <div class="device-meta">${device.type === 'ant-rx' ? 'RX' : 'TX'}</div>
+              </div>
+            `;
+            bodyHtml = `
+              <div class="device-body">
+                <div class="antenna-shape ${device.type === 'ant-rx' ? 'antenna-rx' : 'antenna-tx'}"></div>
+              </div>
+            `;
+            // For TX antennas, display output power and loss in dB
+            if (device.type === 'ant-tx') {
+              const inputs = connections.filter(c => c.toDeviceId === device.id && c.toType === 'ant-tx-in');
+              const insCount = inputs.length;
+              const outPowerVal = computeDevicePower(device.id);
+              const outPower = outPowerVal.toFixed(0);
+              // Compute the total transmitter power feeding into this antenna by walking the chain upstream
+              let sumRoot = 0;
+              inputs.forEach(conn => {
+                sumRoot += computeRootActivePower(conn.fromDeviceId, conn.fromType, conn.fromIndex, {});
+              });
+              let lossDb = '0';
+              if (sumRoot > 0 && outPowerVal > 0) {
+                lossDb = (10 * Math.log10(sumRoot / outPowerVal)).toFixed(1);
+              }
+              footerHtml = `
+                <div class="device-footer">
+                  <span>${insCount} вход${insCount === 1 ? '' : 'а'}</span>
+                  <span>${outPower} мВт · -${lossDb} дБ</span>
+                </div>
+              `;
+            } else {
+              // RX antenna: no power display
+              footerHtml = `
+                <div class="device-footer">
+                  <span>&nbsp;</span>
+                  <span>&nbsp;</span>
+                </div>
+              `;
+            }
+          } else if (device.type === 'antenna') {
+            // generic antenna fallback (not used)
+            headerHtml = `
+              <div class="device-header">
+                <div class="device-title">${escapeHtml(device.label || 'Antenna')}</div>
+                <div class="device-meta"></div>
+              </div>
+            `;
+            bodyHtml = `
+              <div class="device-body">
+                <div>Антенна</div>
+              </div>
+            `;
+            footerHtml = `
+              <div class="device-footer">
+                <span>&nbsp;</span>
+                <span>&nbsp;</span>
+              </div>
+            `;
+          } else if (device.type === 'summator') {
+            const inputs = device.inputs || 2;
+            headerHtml = `
+              <div class="device-header">
+                <div class="device-title">${escapeHtml(device.label || 'Summator')}</div>
+                <div class="device-meta">${inputs} вход.</div>
+              </div>
+            `;
+            bodyHtml = `
+              <div class="device-body">
+                <div>RF сумматор
+                  <div style="font-size: 10px; color: var(--text-soft);">Складывает антенны</div>
+                </div>
+              </div>
+            `;
+            const usedCount = countSummatorUsedInputs(device.id);
+            const outPowerVal = computeDevicePower(device.id);
+            const outPower = outPowerVal.toFixed(0);
+            footerHtml = `
+              <div class="device-footer">
+                <span>${usedCount}/${inputs} входов</span>
+                <span>${outPower} мВт</span>
+              </div>
+            `;
+          }
+
+          card.innerHTML = headerHtml + bodyHtml + footerHtml;
+
+          // Add device action buttons (rename, delete, change power for rack)
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'device-actions';
+          const renameBtn = document.createElement('button');
+          renameBtn.innerHTML = '✏️';
+          renameBtn.title = 'Переименовать';
+          renameBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            renameDevice(device.id);
+          });
+          actionsDiv.appendChild(renameBtn);
+          const delBtn = document.createElement('button');
+          delBtn.innerHTML = '🗑️';
+          delBtn.title = 'Удалить';
+          delBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            deleteDevice(device.id);
+          });
+          actionsDiv.appendChild(delBtn);
+          if (device.type === 'rack' && (device.rackType || 'mic') === 'iem') {
+            // Only IEM racks have transmitter power to edit
+            const powBtn = document.createElement('button');
+            powBtn.innerHTML = '⚡';
+            powBtn.title = 'Изменить мощность';
+            powBtn.addEventListener('click', ev => {
+              ev.stopPropagation();
+              changeRackPower(device.id);
+            });
+            actionsDiv.appendChild(powBtn);
+          }
+          card.appendChild(actionsDiv);
+
+          // Create ports containers
+          const portsTop = document.createElement('div');
+          portsTop.classList.add('ports', 'ports-top');
+          const portsBottom = document.createElement('div');
+          portsBottom.classList.add('ports', 'ports-bottom');
+
+          if (device.type === 'rack') {
+            // Different port layout depending on rack type
+            const rType = device.rackType || 'mic';
+            if (rType === 'mic') {
+              // Microphone rack: input from splitter or cascade; cascade output at bottom
+              const inPort = createPortElement(device.id, 'rack-in', 0, 'RF In');
+              portsTop.appendChild(inPort);
+              const outPort = createPortElement(device.id, 'rack-out', 0, 'Cascade');
+              portsBottom.appendChild(outPort);
+            } else {
+              // IEM rack: place all ports on the bottom row to reduce visual clutter.
+              // Order: In A, In B, A+B Out (passive summator), RF Out (active combiner)
+              for (let i = 0; i < 2; i++) {
+                const label = i === 0 ? 'In A' : 'In B';
+                const port = createPortElement(device.id, 'iem-sum-in', i, label);
+                if (connections.some(c => c.toDeviceId === device.id && c.toType === 'iem-sum-in' && c.toIndex === i)) {
+                  port.classList.add('used');
+                }
+                portsBottom.appendChild(port);
+              }
+              // Passive summator output (A+B Out)
+              const sumOut = createPortElement(device.id, 'iem-sum-out', 0, 'A+B Out');
+              portsBottom.appendChild(sumOut);
+              // Active combiner output (RF Out)
+              const rfOut = createPortElement(device.id, 'iem-rf-out', 0, 'RF Out');
+              portsBottom.appendChild(rfOut);
+            }
+          } else if (device.type === 'splitter') {
+            // splitter has two antenna inputs (A and B). Each input is a separate port.
+            const inA = createPortElement(device.id, 'splitter-in', 0, 'ANT A');
+            const inB = createPortElement(device.id, 'splitter-in', 1, 'ANT B');
+            portsTop.appendChild(inA);
+            portsTop.appendChild(inB);
+            // splitter-out ports at bottom
+            for (let i = 0; i < (device.outputs || 4); i++) {
+              const used = isSplitterOutputUsed(device.id, i);
+              const port = createPortElement(device.id, 'splitter-out', i, 'OUT ' + (i + 1));
+              if (used) {
+                port.classList.add('used');
+              }
+              portsBottom.appendChild(port);
+            }
+          } else if (device.type === 'ant-rx') {
+            // Receiving antenna: only output at bottom
+            const port = createPortElement(device.id, 'ant-rx-out', 0, 'ANT');
+            portsBottom.appendChild(port);
+          } else if (device.type === 'ant-tx') {
+            // Transmitting antenna: only input at bottom
+            const port = createPortElement(device.id, 'ant-tx-in', 0, 'ANT');
+            portsBottom.appendChild(port);
+          } else if (device.type === 'antenna') {
+            // Fallback generic antenna with two ports (deprecated)
+            const topPort = createPortElement(device.id, 'antenna', 0, 'ANT');
+            portsTop.appendChild(topPort);
+            const bottomPort = createPortElement(device.id, 'antenna', 0, 'ANT');
+            portsBottom.appendChild(bottomPort);
+          } else if (device.type === 'summator') {
+            // Output at top
+            const outPort = createPortElement(device.id, 'summator-out', 0, 'OUT');
+            portsTop.appendChild(outPort);
+            // Inputs at bottom
+            for (let i = 0; i < (device.inputs || 2); i++) {
+              const port = createPortElement(device.id, 'summator-in', i, 'IN ' + (i + 1));
+              if (connections.some(c => c.toDeviceId === device.id && c.toType === 'summator-in' && c.toIndex === i)) {
+                port.classList.add('used');
+              }
+              portsBottom.appendChild(port);
+            }
+          }
+
+          card.appendChild(portsTop);
+          card.appendChild(portsBottom);
+          deviceLayer.appendChild(card);
+        });
+        renderConnections();
+      }
+
+      // Render all connections as SVG paths
+      function renderConnections() {
+        const rect = diagramContainer.getBoundingClientRect();
+        const w = rect.width || 1;
+        const h = rect.height || 1;
+        connectionLayer.setAttribute('width', w);
+        connectionLayer.setAttribute('height', h);
+        connectionLayer.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+        connectionLayer.innerHTML = '';
+
+        connections.forEach(conn => {
+          const fromSelector = `.port[data-device-id="${conn.fromDeviceId}"][data-port-type="${conn.fromType}"][data-port-index="${conn.fromIndex}"]`;
+          const toSelector = `.port[data-device-id="${conn.toDeviceId}"][data-port-type="${conn.toType}"][data-port-index="${conn.toIndex}"]`;
+          const fromEl = deviceLayer.querySelector(fromSelector);
+          const toEl = deviceLayer.querySelector(toSelector);
+          if (!fromEl || !toEl) return;
+          const fromRect = fromEl.getBoundingClientRect();
+          const toRect = toEl.getBoundingClientRect();
+          let dPath;
+        // self‑connection: draw a small downward arc beneath the device
+        if (conn.fromDeviceId === conn.toDeviceId) {
+          const cardEl = deviceLayer.querySelector(`.device-card[data-id="${conn.fromDeviceId}"]`);
+          if (cardEl) {
+            // Starting and ending coordinates of the ports
+            const x1 = fromRect.left + fromRect.width / 2 - rect.left;
+            const y1 = fromRect.top + fromRect.height / 2 - rect.top;
+            const x2 = toRect.left + toRect.width / 2 - rect.left;
+            const y2 = toRect.top + toRect.height / 2 - rect.top;
+            // Determine offset below the card to create a subtle arc beneath the rack
+            const cardRect = cardEl.getBoundingClientRect();
+            const offsetY = cardRect.height * 0.6;
+            const arcY = cardRect.bottom - rect.top + offsetY;
+            // Draw a cubic bezier curve going down and back up beneath the device
+            dPath = `M ${x1} ${y1} C ${x1} ${arcY}, ${x2} ${arcY}, ${x2} ${y2}`;
+          }
+        }
+          // default connection path
+          if (!dPath) {
+            const x1 = fromRect.left + fromRect.width / 2 - rect.left;
+            const y1 = fromRect.top + fromRect.height / 2 - rect.top;
+            const x2 = toRect.left + toRect.width / 2 - rect.left;
+            const y2 = toRect.top + toRect.height / 2 - rect.top;
+            const dx = (x2 - x1) * 0.35;
+            const dy = 0;
+            dPath = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy}, ${x2 - dx} ${y2 - dy}, ${x2} ${y2}`;
+          }
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', dPath);
+          let cls = 'connection-line';
+          if (conn.fromType === 'rack-out' && conn.toType === 'rack-in') {
+            cls += ' cascade';
+          }
+          if (conn.fromType === 'summator-out' || conn.toType === 'ant-tx-in' || conn.fromType === 'ant-rx-out') {
+            cls += ' combined';
+          }
+          path.setAttribute('class', cls);
+          // Ensure the line can capture click events along its stroke by setting both style and SVG attribute
+          path.setAttribute('pointer-events', 'stroke');
+          path.style.pointerEvents = 'stroke';
+          path.dataset.connId = conn.id;
+          path.addEventListener('click', onConnectionClick);
+          connectionLayer.appendChild(path);
+        });
+        // After devices have been rendered, update the page boundary overlay
+        renderPageBoundaries();
+      }
+
+      // Render dashed page boundary lines onto the overlay. These boundaries correspond to the
+      // page layout used in PDF export. Only pages that contain devices are drawn.
+      function renderPageBoundaries() {
+        if (!pageOverlay || !diagramContainer) return;
+        // Clear existing lines
+        pageOverlay.innerHTML = '';
+        const deviceEls = diagramContainer.querySelectorAll('.device-card');
+        if (!deviceEls || deviceEls.length === 0) {
+          return;
+        }
+        // Compute bounding rectangle of all devices with margin (same as PDF logic)
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        deviceEls.forEach(el => {
+          const x = el.offsetLeft;
+          const y = el.offsetTop;
+          const w = el.offsetWidth;
+          const h = el.offsetHeight;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x + w > maxX) maxX = x + w;
+          if (y + h > maxY) maxY = y + h;
+        });
+        const marginPx = 50;
+        minX = Math.max(0, minX - marginPx);
+        minY = Math.max(0, minY - marginPx);
+        maxX = Math.min(diagramContainer.scrollWidth, maxX + marginPx);
+        maxY = Math.min(diagramContainer.scrollHeight, maxY + marginPx);
+        const width = maxX - minX;
+        const height = maxY - minY;
+        // Determine page layout (portrait or landscape) that yields fewer pages
+        const pxPerMm = 96 / 25.4;
+        function computeLayout(pWmm, pHmm) {
+          const usableWpx = (pWmm - 20) * pxPerMm;
+          const usableHpx = (pHmm - 20) * pxPerMm;
+          const cols = Math.ceil(width / usableWpx);
+          const rows = Math.ceil(height / usableHpx);
+          return { cols, rows, usableWpx, usableHpx };
+        }
+        const portrait = computeLayout(210, 297);
+        const landscape = computeLayout(297, 210);
+        const layout = (landscape.cols * landscape.rows <= portrait.cols * portrait.rows) ? landscape : portrait;
+        const totalCols = layout.cols;
+        const totalRows = layout.rows;
+        const pageWpx = layout.usableWpx;
+        const pageHpx = layout.usableHpx;
+        // Resize overlay to cover the entire diagram
+        pageOverlay.style.width = diagramContainer.scrollWidth + 'px';
+        pageOverlay.style.height = diagramContainer.scrollHeight + 'px';
+        // Draw vertical dashed lines
+        for (let c = 1; c < totalCols; c++) {
+          const line = document.createElement('div');
+          line.className = 'page-boundary-line page-boundary-vertical';
+          line.style.left = (minX + c * pageWpx) + 'px';
+          line.style.top = minY + 'px';
+          line.style.height = height + 'px';
+          pageOverlay.appendChild(line);
+        }
+        // Draw horizontal dashed lines
+        for (let r = 1; r < totalRows; r++) {
+          const line = document.createElement('div');
+          line.className = 'page-boundary-line page-boundary-horizontal';
+          line.style.top = (minY + r * pageHpx) + 'px';
+          line.style.left = minX + 'px';
+          line.style.width = width + 'px';
+          pageOverlay.appendChild(line);
+        }
+      }
+
+      // Helper to remove pending port selection
+      function clearPendingPort() {
+        if (pendingPort && pendingPort.el) {
+          pendingPort.el.classList.remove('selected');
+        }
+        pendingPort = null;
+      }
+
+      // Event handlers for connection removal
+      function onConnectionClick(e) {
+        e.stopPropagation();
+        const connId = e.target.dataset.connId;
+        const idx = connections.findIndex(c => c.id === connId);
+        if (idx >= 0) {
+          if (confirm('Удалить это соединение?')) {
+            connections.splice(idx, 1);
+            renderDevices();
+            setStatus('Соединение удалено.', 'ok');
+          }
+        }
+      }
+
+      // Create connection by clicking
+      function onPortClick(e) {
+        e.stopPropagation();
+        const el = e.currentTarget;
+        const deviceId = el.dataset.deviceId;
+        const portType = el.dataset.portType;
+        const portIndex = parseInt(el.dataset.portIndex, 10);
+        // If currently dragging a cable, end drag
+        if (dragConnection) {
+          finishDragConnection(el);
+          return;
+        }
+        // Two-click connect fallback
+        const clicked = { el, deviceId, portType, portIndex };
+        if (!pendingPort) {
+          pendingPort = clicked;
+          el.classList.add('selected');
+          setStatus('Порт выбран. Теперь выбери второй порт.', 'info');
+          return;
+        }
+        // Same port resets
+        if (pendingPort.deviceId === deviceId && pendingPort.portType === portType && pendingPort.portIndex === portIndex) {
+          clearPendingPort();
+          setStatus('Выбор порта сброшен.', 'info');
+          return;
+        }
+        // Attempt connection
+        const res = connectPorts(pendingPort, clicked);
+        clearPendingPort();
+        if (!res.ok) {
+          setStatus(res.message, 'error');
+        } else {
+          renderDevices();
+          setStatus(res.message, 'ok');
+        }
+      }
+
+      // Start drag connection on mousedown
+      function onPortMouseDown(e) {
+        // Start drag connection on left-click. Dragging begins immediately; click will finalize connection.
+        e.stopPropagation();
+        if (e.button !== 0) return;
+        const el = e.currentTarget;
+        const deviceId = el.dataset.deviceId;
+        const portType = el.dataset.portType;
+        const portIndex = parseInt(el.dataset.portIndex, 10);
+        dragConnection = {
+          start: { el, deviceId, portType, portIndex },
+          pathEl: null
+        };
+        // Create temporary path following the mouse
+        const rect = diagramContainer.getBoundingClientRect();
+        const fromRect = el.getBoundingClientRect();
+        const x1 = fromRect.left + fromRect.width / 2 - rect.left;
+        const y1 = fromRect.top + fromRect.height / 2 - rect.top;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'connection-line');
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${y1}, ${x1} ${y1}, ${x1} ${y1}`);
+        connectionLayer.appendChild(path);
+        dragConnection.pathEl = path;
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('mouseup', onDragEnd);
+      }
+
+      function onDragMove(e) {
+        if (!dragConnection) return;
+        const rect = diagramContainer.getBoundingClientRect();
+        const fromRect = dragConnection.start.el.getBoundingClientRect();
+        const x1 = fromRect.left + fromRect.width / 2 - rect.left;
+        const y1 = fromRect.top + fromRect.height / 2 - rect.top;
+        const x2 = e.clientX - rect.left;
+        const y2 = e.clientY - rect.top;
+        const dx = (x2 - x1) * 0.35;
+        const dy = 0;
+        const d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dy}, ${x2 - dx} ${y2 - dy}, ${x2} ${y2}`;
+        dragConnection.pathEl.setAttribute('d', d);
+      }
+
+      function onDragEnd(e) {
+        if (!dragConnection) return;
+        // Determine element under mouse
+        const element = document.elementFromPoint(e.clientX, e.clientY);
+        finishDragConnection(element);
+      }
+
+      function finishDragConnection(endElement) {
+        if (!dragConnection) return;
+        document.removeEventListener('mousemove', onDragMove);
+        document.removeEventListener('mouseup', onDragEnd);
+        if (dragConnection.pathEl && dragConnection.pathEl.parentNode) {
+          dragConnection.pathEl.parentNode.removeChild(dragConnection.pathEl);
+        }
+        const start = dragConnection.start;
+        dragConnection = null;
+        // Find port element
+        if (endElement && endElement.classList) {
+          const portEl = endElement.closest('.port');
+          if (portEl) {
+            const to = {
+              el: portEl,
+              deviceId: portEl.dataset.deviceId,
+              portType: portEl.dataset.portType,
+              portIndex: parseInt(portEl.dataset.portIndex, 10)
+            };
+            const res = connectPorts(start, to);
+            if (!res.ok) {
+              setStatus(res.message, 'error');
+            } else {
+              renderDevices();
+              setStatus(res.message, 'ok');
+            }
+            return;
+          }
+        }
+        setStatus('Соединение не создано: отпустите на другом порту.', 'info');
+      }
+
+      // Validate and create connection between two port definitions
+      function connectPorts(p1, p2) {
+        // Determine orientation categories
+        // Define port categories: outputs and inputs. Removed combiner types and replaced IEM port names
+        const outTypes = ['rack-out', 'splitter-out', 'summator-out', 'ant-rx-out', 'iem-rf-out', 'iem-sum-out'];
+        const inTypes = ['rack-in', 'splitter-in', 'summator-in', 'ant-tx-in', 'iem-sum-in'];
+        // Antenna connection logic: new ant-rx-out and ant-tx-in
+        // If one of the ports is ant-rx-out, restrict its destination
+        if (p1.portType === 'ant-rx-out' || p2.portType === 'ant-rx-out') {
+          const from = p1.portType === 'ant-rx-out' ? p1 : p2;
+          const to = p1.portType === 'ant-rx-out' ? p2 : p1;
+          // ant-rx-out can connect to splitter-in, mic rack-in, or summator-in
+          if (
+            to.portType === 'splitter-in' ||
+            (to.portType === 'rack-in' && isMicRack(to.deviceId)) ||
+            to.portType === 'summator-in'
+          ) {
+            return finalizeConnection(from, to);
+          }
+          return { ok: false, message: 'RX‑антенна подключается к сплиттеру, сумматору или реку Mic.' };
+        }
+        // If one of ports is ant-tx-in, restrict its source
+        if (p1.portType === 'ant-tx-in' || p2.portType === 'ant-tx-in') {
+          // TX antenna logic: allow multiple sources; connect if valid from types
+          const to = p1.portType === 'ant-tx-in' ? p1 : p2;
+          const from = p1.portType === 'ant-tx-in' ? p2 : p1;
+          // Valid sources: IEM active output (iem-rf-out), IEM summator output (iem-sum-out), or summator-out
+          if (
+            from.portType === 'iem-rf-out' ||
+            from.portType === 'iem-sum-out' ||
+            from.portType === 'summator-out'
+          ) {
+            // multiple inputs allowed; attenuation occurs at antenna
+            return finalizeConnection(from, to);
+          }
+          return { ok: false, message: 'TX‑антенна принимает сигнал от RF Out IEM, A+B Out IEM или сумматора.' };
+        }
+        // Prevent same port
+        if (p1.deviceId === p2.deviceId && p1.portType === p2.portType && p1.portIndex === p2.portIndex) {
+          return { ok: false, message: 'Нельзя соединять один и тот же порт.' };
+        }
+        let from, to;
+        // Determine orientation
+        if (outTypes.includes(p1.portType) && inTypes.includes(p2.portType)) {
+          from = p1; to = p2;
+        } else if (outTypes.includes(p2.portType) && inTypes.includes(p1.portType)) {
+          from = p2; to = p1;
+        } else {
+          return { ok: false, message: 'Соединяйте выход с входом.' };
+        }
+        // Disallow self connection except for special internal connections on IEM racks
+        // An IEM rack contains an internal active combiner (RF Out) feeding its own passive summator (In A/B).
+        // Allow connecting an IEM rack's RF Out or A+B Out back into its own summator inputs (In A/B).
+        if (from.deviceId === to.deviceId) {
+          // Internal allowed cases: RF Out -> In A/B, A+B Out -> In A/B
+          const allowedSelf = (
+            (from.portType === 'iem-rf-out' && to.portType === 'iem-sum-in') ||
+            (from.portType === 'iem-sum-out' && to.portType === 'iem-sum-in')
+          );
+          if (!allowedSelf) {
+            return { ok: false, message: 'Нельзя соединять устройство само с собой.' };
+          }
+        }
+        // Unique input restrictions: only one connection per input port
+        if (to.portType.endsWith('in')) {
+          const existing = connections.find(c => c.toDeviceId === to.deviceId && c.toType === to.portType && c.toIndex === to.portIndex);
+          if (existing) {
+            return { ok: false, message: 'Этот вход уже занят.' };
+          }
+        }
+        // Specific logic per type
+        // Splitter outputs can only go to rack-in or summator-in
+        if (from.portType === 'splitter-out') {
+          if (!(to.portType === 'rack-in' || to.portType === 'summator-in')) {
+            return { ok: false, message: 'Выход сплиттера подключается к входу река или сумматора.' };
+          }
+        }
+        // Rack-out can go only to rack-in (for microphone racks). IEM racks do not have a rack-out port.
+        if (from.portType === 'rack-out') {
+          if (to.portType !== 'rack-in') {
+            return { ok: false, message: 'Каскадный выход подключается только к входу другого микрофонного река.' };
+          }
+          // Limit cascade chain: each rack participates in only one cascade.
+          const participants = [from.deviceId, to.deviceId];
+          const existingCascade = connections.find(c => c.fromType === 'rack-out' && c.toType === 'rack-in' && (participants.includes(c.fromDeviceId) || participants.includes(c.toDeviceId)));
+          if (existingCascade) {
+            return { ok: false, message: 'Каждый рек участвует только в одном каскаде (цепочка не более двух).' };
+          }
+        }
+
+        // Summator-in accepts signals from splitter-out, ant-rx-out or IEM outputs (RF Out/A+B Out)
+        if (to.portType === 'summator-in') {
+          if (!(from.portType === 'splitter-out' || from.portType === 'ant-rx-out' || from.portType === 'iem-rf-out' || from.portType === 'iem-sum-out')) {
+            return { ok: false, message: 'Вход сумматора подключается к выходу сплиттера, RX‑антенне или IEM (RF Out/A+B Out).' };
+          }
+          const usedCount = countSummatorUsedInputs(to.deviceId);
+          const targetDevice = devices.find(d => d.id === to.deviceId);
+          const maxInputs = targetDevice ? targetDevice.inputs : 2;
+          if (usedCount >= maxInputs) {
+            return { ok: false, message: 'Все входы сумматора заняты.' };
+          }
+        }
+
+        // Summator-out can feed either a splitter (antenna distribution) or a TX antenna
+        if (from.portType === 'summator-out') {
+          if (!(to.portType === 'splitter-in' || to.portType === 'ant-tx-in')) {
+            return { ok: false, message: 'Выход сумматора подключается к входу сплиттера или TX антенне.' };
+          }
+        }
+
+        // IEM passive summator input (iem-sum-in) accepts only from iem-rf-out or iem-sum-out
+        if (to.portType === 'iem-sum-in') {
+          if (!(from.portType === 'iem-rf-out' || from.portType === 'iem-sum-out')) {
+            return { ok: false, message: 'Вход IEM принимает сигнал от RF Out или A+B Out другого IEM.' };
+          }
+        }
+
+        // IEM active output (iem-rf-out) can feed another IEM's summator, a TX antenna or a summator
+        if (from.portType === 'iem-rf-out') {
+          if (!(to.portType === 'iem-sum-in' || to.portType === 'ant-tx-in' || to.portType === 'summator-in')) {
+            return { ok: false, message: 'RF Out IEM подключается к входу другого IEM, сумматору или TX антенне.' };
+          }
+        }
+
+        // IEM passive summator output (iem-sum-out) can feed another IEM's summator, a TX antenna or a summator
+        if (from.portType === 'iem-sum-out') {
+          if (!(to.portType === 'iem-sum-in' || to.portType === 'ant-tx-in' || to.portType === 'summator-in')) {
+            return { ok: false, message: 'A+B Out IEM подключается к входу другого IEM, сумматору или TX антенне.' };
+          }
+        }
+        // Make sure this exact connection does not already exist
+        const duplicate = connections.find(c => c.fromDeviceId === from.deviceId && c.fromType === from.portType && c.fromIndex === from.portIndex && c.toDeviceId === to.deviceId && c.toType === to.portType && c.toIndex === to.portIndex);
+        if (duplicate) {
+          return { ok: false, message: 'Такое соединение уже существует.' };
+        }
+        // Create connection
+        connections.push({ id: 'conn_' + connectionCounter++, fromDeviceId: from.deviceId, fromType: from.portType, fromIndex: from.portIndex, toDeviceId: to.deviceId, toType: to.portType, toIndex: to.portIndex });
+        return { ok: true, message: 'Соединение создано.' };
+      }
+
+      function finalizeConnection(from, to) {
+        // ensure we have from as output and to as input; we treat portType 'antenna' accordingly
+        connections.push({ id: 'conn_' + connectionCounter++, fromDeviceId: from.deviceId, fromType: from.portType, fromIndex: from.portIndex, toDeviceId: to.deviceId, toType: to.portType, toIndex: to.portIndex });
+        return { ok: true, message: 'Соединение создано.' };
+      }
+
+      // Drag & drop device movement
+      function onMouseDown(e) {
+        const card = e.target.closest('.device-card');
+        if (!card) return;
+        // ignore port clicks (handled separately)
+        if (e.target.classList.contains('port') || e.target.closest('.port')) return;
+        const id = card.dataset.id;
+        const cardRect = card.getBoundingClientRect();
+        const containerRect = diagramContainer.getBoundingClientRect();
+        dragState = {
+          id,
+          offsetX: e.clientX - cardRect.left,
+          offsetY: e.clientY - cardRect.top,
+          containerLeft: containerRect.left,
+          containerTop: containerRect.top
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      }
+
+      function onMouseMove(e) {
+        if (!dragState) return;
+        const device = devices.find(d => d.id === dragState.id);
+        if (!device) return;
+        const x = e.clientX - dragState.containerLeft - dragState.offsetX;
+        const y = e.clientY - dragState.containerTop - dragState.offsetY;
+        device.x = x;
+        device.y = y;
+        const card = deviceLayer.querySelector('.device-card[data-id="' + device.id + '"]');
+        if (card) {
+          card.style.left = x + 'px';
+          card.style.top = y + 'px';
+        }
+        renderConnections();
+      }
+
+      function onMouseUp() {
+        dragState = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        // Recalculate page boundaries after device movement
+        renderPageBoundaries();
+      }
+
+      // Begin panning when the user clicks on an empty area of the wrapper
+      function onPanStart(e) {
+        // If already panning, ignore subsequent down events (e.g. from dual mouse/pointer listeners)
+        if (isPanning) return;
+        // Only respond to primary button
+        if (e.button !== 0) return;
+        // If clicked on a device card, a port or on a connection line (path), ignore and allow other interactions
+        if (
+          e.target.closest('.device-card') ||
+          e.target.classList.contains('port') ||
+          e.target.closest('.port') ||
+          e.target.closest('path')
+        ) {
+          return;
+        }
+        isPanning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        panStartScrollLeft = diagramWrapper.scrollLeft;
+        panStartScrollTop = diagramWrapper.scrollTop;
+        // Use grabbing cursor to indicate panning
+        diagramWrapper.style.cursor = 'grabbing';
+        // To ensure consistent drag tracking, attach pointermove and pointerup listeners.
+        // Use capture phase to intercept events before they propagate to children.
+        const moveHandler = onPanMove;
+        const upHandler = onPanEnd;
+        if (diagramWrapper) {
+          diagramWrapper.addEventListener('pointermove', moveHandler);
+          diagramWrapper.addEventListener('pointerup', upHandler);
+          diagramWrapper.addEventListener('pointercancel', upHandler);
+        } else {
+          document.addEventListener('pointermove', moveHandler);
+          document.addEventListener('pointerup', upHandler);
+          document.addEventListener('pointercancel', upHandler);
+        }
+        // Prevent default text selection and set pointer capture on the wrapper if possible
+        if (typeof diagramWrapper.setPointerCapture === 'function' && e.pointerId !== undefined) {
+          try {
+            diagramWrapper.setPointerCapture(e.pointerId);
+          } catch (ex) {
+            // ignore errors; pointer capture may fail if pointer is not yet captured
+          }
+        }
+        e.preventDefault();
+      }
+
+      // Handle mousemove while panning
+      function onPanMove(e) {
+        if (!isPanning) return;
+        const dx = e.clientX - panStartX;
+        const dy = e.clientY - panStartY;
+        diagramWrapper.scrollLeft = panStartScrollLeft - dx;
+        diagramWrapper.scrollTop = panStartScrollTop - dy;
+        renderConnections();
+      }
+
+      // End panning
+      function onPanEnd() {
+        if (!isPanning) return;
+        isPanning = false;
+        diagramWrapper.style.cursor = 'default';
+        // Remove pointer event listeners that were added during panning
+        if (diagramWrapper) {
+          diagramWrapper.removeEventListener('pointermove', onPanMove);
+          diagramWrapper.removeEventListener('pointerup', onPanEnd);
+          diagramWrapper.removeEventListener('pointercancel', onPanEnd);
+        } else {
+          document.removeEventListener('pointermove', onPanMove);
+          document.removeEventListener('pointerup', onPanEnd);
+          document.removeEventListener('pointercancel', onPanEnd);
+        }
+      }
+
+      // Export to PDF: intelligently paginate the diagram into multiple pages with dashed boundaries and a separate summary page.
+      async function onExportPdf() {
+        try {
+          // Gather statistics for the summary ahead of exporting. Compute counts and per-rack details.
+          let totalRadioSystems = 0;
+          let micRadioSystems = 0;
+          let iemRadioSystems = 0;
+          let micRackCount = 0;
+          let iemRackCount = 0;
+          let passiveSummatorsCount = 0;
+          let antTxCount = 0;
+          let antRxCount = 0;
+          let splitterCount = 0;
+          devices.forEach(dev => {
+            if (dev.type === 'rack') {
+              totalRadioSystems += dev.channels || 0;
+              const rType = dev.rackType || 'mic';
+              if (rType === 'mic') {
+                micRadioSystems += dev.channels || 0;
+                micRackCount += 1;
+              } else {
+                iemRadioSystems += dev.channels || 0;
+                iemRackCount += 1;
+              }
+            } else if (dev.type === 'summator') {
+              passiveSummatorsCount += 1;
+            } else if (dev.type === 'ant-tx') {
+              antTxCount += 1;
+            } else if (dev.type === 'ant-rx') {
+              antRxCount += 1;
+            } else if (dev.type === 'splitter') {
+              splitterCount += 1;
+            }
+          });
+          const combinerCount = iemRackCount; // One combiner per IEM rack
+          const cableCount = connections.length;
+          const micSplittersCount = micRackCount + splitterCount;
+          // Build summary lines
+          const summaryLines = [];
+          summaryLines.push('Список радиосистем');
+          summaryLines.push('');
+          summaryLines.push(`Всего радиосистем: ${totalRadioSystems} (Mic: ${micRadioSystems}, IEM: ${iemRadioSystems})`);
+          summaryLines.push(`Комбайнеры: ${combinerCount}`);
+          summaryLines.push(`Сумматоры пассивные: ${passiveSummatorsCount}`);
+          summaryLines.push(`Антенны TX: ${antTxCount}; Антенны RX: ${antRxCount}`);
+          summaryLines.push(`Соединительные кабели: ${cableCount}`);
+          summaryLines.push(`Микрофонные сплиттеры: ${micSplittersCount}`);
+          summaryLines.push('');
+          // For each rack, add a line summarizing connections
+          devices.forEach(dev => {
+            if (dev.type === 'rack') {
+              const rType = dev.rackType || 'mic';
+              const label = dev.label || 'Rack';
+              const channels = dev.channels || 0;
+              let line = `${label} (${rType === 'mic' ? 'Mic' : 'IEM'}, ${channels} ch): `;
+              if (rType === 'mic') {
+                const conn = connections.find(c => c.toDeviceId === dev.id && c.toType === 'rack-in');
+                if (!conn) {
+                  line += 'не подключен';
+                } else if (conn.fromType === 'splitter-out') {
+                  const src = devices.find(d => d.id === conn.fromDeviceId);
+                  line += 'от ' + (src ? src.label : 'Splitter') + ' · OUT ' + (conn.fromIndex + 1);
+                } else if (conn.fromType === 'rack-out') {
+                  const src = devices.find(d => d.id === conn.fromDeviceId);
+                  line += 'каскад от ' + (src ? src.label : 'Rack');
+                } else if (conn.fromType === 'summator-out') {
+                  const src = devices.find(d => d.id === conn.fromDeviceId);
+                  line += 'от ' + (src ? src.label : 'Устройство');
+                } else if (conn.fromType === 'ant-rx-out') {
+                  const src = devices.find(d => d.id === conn.fromDeviceId);
+                  line += 'от ' + (src ? src.label : 'Антенна');
+                } else {
+                  line += 'подключен';
+                }
+              } else {
+                // IEM rack summary
+                const ins = connections.filter(c => c.toDeviceId === dev.id && c.toType === 'iem-sum-in');
+                if (ins.length === 0) {
+                  line += 'нет входов';
+                } else {
+                  const parts = ins.map(conn => {
+                    const src = devices.find(d => d.id === conn.fromDeviceId);
+                    return src ? src.label : 'Источник';
+                  });
+                  line += 'получает от ' + parts.join(', ');
+                }
+                const rfOutConn = connections.find(c => c.fromDeviceId === dev.id && c.fromType === 'iem-rf-out');
+                if (rfOutConn) {
+                  const dest = devices.find(d => d.id === rfOutConn.toDeviceId);
+                  if (dest) {
+                    line += '; RF Out → ' + dest.label;
+                  }
+                }
+                const sumOutConn = connections.find(c => c.fromDeviceId === dev.id && c.fromType === 'iem-sum-out');
+                if (sumOutConn) {
+                  const dest = devices.find(d => d.id === sumOutConn.toDeviceId);
+                  if (dest) {
+                    line += '; A+B Out → ' + dest.label;
+                  }
+                }
+              }
+              summaryLines.push(line);
+            }
+          });
+
+          // If no devices, abort export.
+          const deviceEls = diagramContainer.querySelectorAll('.device-card');
+          if (!deviceEls || deviceEls.length === 0) {
+            setStatus('Нет устройств для экспорта.', 'error');
+            return;
+          }
+          // Ensure the connections are rendered up to date
+          renderConnections();
+
+          // Compute bounding rectangle of all devices (in px) with some margin.
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+          deviceEls.forEach(el => {
+            const x = el.offsetLeft;
+            const y = el.offsetTop;
+            const w = el.offsetWidth;
+            const h = el.offsetHeight;
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x + w > maxX) maxX = x + w;
+            if (y + h > maxY) maxY = y + h;
+          });
+          // Add margin of 50 px around the diagram contents
+          const marginPx = 50;
+          minX = Math.max(0, minX - marginPx);
+          minY = Math.max(0, minY - marginPx);
+          maxX = Math.min(diagramContainer.scrollWidth, maxX + marginPx);
+          maxY = Math.min(diagramContainer.scrollHeight, maxY + marginPx);
+          const diagramWidth = maxX - minX;
+          const diagramHeight = maxY - minY;
+
+          // Helper to compute number of pages given page dimensions
+          const pxPerMm = 96 / 25.4;
+          function computeLayout(pageWidthMm, pageHeightMm) {
+            const usableWpx = (pageWidthMm - 20) * pxPerMm; // subtract 10 mm margin on each side
+            const usableHpx = (pageHeightMm - 20) * pxPerMm;
+            const cols = Math.ceil(diagramWidth / usableWpx);
+            const rows = Math.ceil(diagramHeight / usableHpx);
+            return { cols, rows, usableWpx, usableHpx, usableWmm: pageWidthMm - 20, usableHmm: pageHeightMm - 20 };
+          }
+          // A4: 210 x 297 mm. We'll test both orientations and choose the one with fewer pages.
+          const portrait = computeLayout(210, 297);
+          const landscape = computeLayout(297, 210);
+          let orientation;
+          let layout;
+          if (landscape.cols * landscape.rows <= portrait.cols * portrait.rows) {
+            orientation = 'landscape';
+            layout = landscape;
+          } else {
+            orientation = 'portrait';
+            layout = portrait;
+          }
+          const totalCols = layout.cols;
+          const totalRows = layout.rows;
+          const pageWpx = layout.usableWpx;
+          const pageHpx = layout.usableHpx;
+          const pageWmm = layout.usableWmm;
+          const pageHmm = layout.usableHmm;
+
+          // Inform the user
+          setStatus('PDF формируется. Диаграмма будет разбита на страницы, затем добавится список.', 'info');
+
+          // Create a new jsPDF instance using global jspdf from html2pdf bundle. Fallback to window.jsPDF if needed.
+          let JsPDFConstructor;
+          if (window.jspdf && window.jspdf.jsPDF) {
+            JsPDFConstructor = window.jspdf.jsPDF;
+          } else if (window.jsPDF) {
+            JsPDFConstructor = window.jsPDF;
+          } else {
+            throw new Error('jsPDF library not found');
+          }
+          const pdf = new JsPDFConstructor({ unit: 'mm', format: 'a4', orientation: orientation });
+          // Loop through pages and render only those containing at least one device. Keep track of whether we've added the first diagram page.
+          let firstDiagramPageAdded = false;
+          // Determine html2canvas function once at the start. Prefer the global html2canvas if available,
+          // otherwise fall back to the copy bundled inside html2pdf. Do not store this in a local variable
+          // because closures in async loops can lose the binding and cause undefined errors. Instead, when
+          // rendering we will reference the function via window to ensure it is always defined. If neither
+          // implementation is available, throw an error.
+          const html2canvasAvailable = window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas);
+          if (!html2canvasAvailable) {
+            throw new Error('html2canvas library not found');
+          }
+          for (let row = 0; row < totalRows; row++) {
+            for (let col = 0; col < totalCols; col++) {
+              const offsetX = minX + col * pageWpx;
+              const offsetY = minY + row * pageHpx;
+              // Determine if this page has any device content
+              let hasContent = false;
+              deviceEls.forEach(el => {
+                const x = el.offsetLeft;
+                const y = el.offsetTop;
+                const w = el.offsetWidth;
+                const h = el.offsetHeight;
+                if (x + w > offsetX && x < offsetX + pageWpx && y + h > offsetY && y < offsetY + pageHpx) {
+                  hasContent = true;
+                }
+              });
+              if (!hasContent) {
+                continue;
+              }
+              // Create a temporary container to hold the cropped portion
+              const pageDiv = document.createElement('div');
+              pageDiv.style.width = pageWpx + 'px';
+              pageDiv.style.height = pageHpx + 'px';
+              // hide the page offscreen to avoid interfering with layout
+              pageDiv.style.position = 'absolute';
+              pageDiv.style.left = '-9999px';
+              pageDiv.style.top = '0';
+              pageDiv.style.overflow = 'hidden';
+              // Add dashed border to mark page boundaries; only show border if multiple pages
+              if (totalCols > 1 || totalRows > 1) {
+                pageDiv.style.border = '1px dashed rgba(148, 163, 184, 0.5)';
+              }
+              // Clone the diagram contents
+              const clone = diagramContainer.cloneNode(true);
+              clone.style.position = 'absolute';
+              clone.style.left = -offsetX + 'px';
+              clone.style.top = -offsetY + 'px';
+              clone.style.width = diagramContainer.scrollWidth + 'px';
+              clone.style.height = diagramContainer.scrollHeight + 'px';
+              // Append to page
+              pageDiv.appendChild(clone);
+              // Append the temporary container to the body so html2canvas can find it
+              document.body.appendChild(pageDiv);
+              // Render to canvas using html2canvas
+              /* eslint-disable no-await-in-loop */
+              // Use the global html2canvas function directly each time to avoid losing the binding.
+              const canvas = await (window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas))(pageDiv, { scale: 2, useCORS: true, backgroundColor: null });
+              // Remove the temporary container from the DOM
+              document.body.removeChild(pageDiv);
+              const imgData = canvas.toDataURL('image/jpeg', 0.95);
+              // Add a new page if not the first diagram page
+              if (firstDiagramPageAdded) {
+                pdf.addPage(orientation);
+              }
+              pdf.addImage(imgData, 'JPEG', 10, 10, pageWmm, pageHmm);
+              firstDiagramPageAdded = true;
+            }
+          }
+          // Ensure that custom fonts (DejaVuSansSubset) are loaded before capturing summary pages.
+          if (document.fonts && document.fonts.load) {
+            try {
+              await document.fonts.ready;
+              await document.fonts.load('16px DejaVuSansSubset');
+            } catch (e) {
+              // If font loading fails, html2canvas will still render using available fonts
+            }
+          }
+          // Create summary pages as images using html2canvas to preserve custom fonts.
+          const pxPerMmSummary = 96 / 25.4;
+          const sumPageWidthMm = 210;
+          const sumPageHeightMm = 297;
+          const sumMarginMm = 10;
+          const sumUsableWidthMm = sumPageWidthMm - 2 * sumMarginMm;
+          const sumUsableHeightMm = sumPageHeightMm - 2 * sumMarginMm;
+          const sumUsableWidthPx = sumUsableWidthMm * pxPerMmSummary;
+          const sumUsableHeightPx = sumUsableHeightMm * pxPerMmSummary;
+          const summaryLineHeightPx = 24;
+          const summaryTotalHeightPx = summaryLines.length * summaryLineHeightPx + 40;
+          const summaryPages = Math.ceil(summaryTotalHeightPx / sumUsableHeightPx) || 1;
+          for (let pageIndex = 0; pageIndex < summaryPages; pageIndex++) {
+            const pageDivSum = document.createElement('div');
+            pageDivSum.style.width = sumUsableWidthPx + 'px';
+            pageDivSum.style.height = sumUsableHeightPx + 'px';
+            pageDivSum.style.position = 'absolute';
+            pageDivSum.style.left = '-9999px';
+            pageDivSum.style.top = '0';
+            pageDivSum.style.overflow = 'hidden';
+            pageDivSum.style.backgroundColor = '#ffffff';
+            const innerSum = document.createElement('div');
+            innerSum.style.position = 'absolute';
+            innerSum.style.left = '0';
+            innerSum.style.top = -(pageIndex * sumUsableHeightPx) + 'px';
+            innerSum.style.width = sumUsableWidthPx + 'px';
+            innerSum.style.fontFamily = 'DejaVuSansSubset, sans-serif';
+            innerSum.style.fontSize = '16px';
+            innerSum.style.lineHeight = summaryLineHeightPx + 'px';
+            innerSum.style.color = '#000000';
+            // Build summary lines
+            summaryLines.forEach(text => {
+              const divLine = document.createElement('div');
+              divLine.textContent = text;
+              innerSum.appendChild(divLine);
+            });
+            pageDivSum.appendChild(innerSum);
+            document.body.appendChild(pageDivSum);
+            /* eslint-disable no-await-in-loop */
+            // Use the global html2canvas function directly for summary pages as well.
+            const canvasSummary = await (window.html2canvas || (window.html2pdf && window.html2pdf.html2canvas))(pageDivSum, { scale: 2, useCORS: true, backgroundColor: null });
+            document.body.removeChild(pageDivSum);
+            const imgDataSum = canvasSummary.toDataURL('image/jpeg', 0.95);
+            pdf.addPage('p', 'a4');
+            pdf.addImage(imgDataSum, 'JPEG', sumMarginMm, sumMarginMm, sumUsableWidthMm, sumUsableHeightMm);
+          }
+          // Save the PDF document
+          pdf.save('rack_rf_scheme.pdf');
+        } catch (err) {
+          console.error(err);
+          // Show a more descriptive error message: include the error name and hint about missing libraries
+          setStatus('Произошла ошибка при создании PDF: ' + (err && err.message ? err.message : err) + '. Проверьте, что браузер поддерживает загрузку PDF и библиотек jsPDF/html2canvas.', 'error');
+        }
+      }
+
+      function onReset() {
+        if (!confirm('Очистить все устройства и соединения?')) return;
+        devices = [];
+        connections = [];
+        deviceCounter = 1;
+        connectionCounter = 1;
+        renderDevices();
+        updateCounters();
+        setStatus('Схема очищена.', 'info');
+      }
+
+      function onToggleGrid() {
+        if (gridToggle.checked) {
+          diagramContainer.classList.remove('no-grid');
+          if (diagramWrapper) diagramWrapper.classList.remove('no-grid');
+        } else {
+          diagramContainer.classList.add('no-grid');
+          if (diagramWrapper) diagramWrapper.classList.add('no-grid');
+        }
+      }
+
+      function onHint() {
+        alert([
+          'Краткая инструкция:',
+          '',
+          '1) Добавь антенны, сплиттеры, реки, комбайнеры и сумматоры через панели.',
+          '2) Перетащи устройства на поле. Ты можешь соединять порты кликом или перетаскиванием.',
+          '3) Сплиттеры кормят реки; реки можно каскадировать; комбайнеры складывают выходы IEM и подают на антенну; сумматоры складывают сигналы антенн.',
+          '4) Клик по линии удаляет соединение.',
+          '5) В счётчиках отображается количество подключённых каналов по типам.',
+          '',
+          'Следите за статусом, в нём отображаются ошибки и уведомления.'
+        ].join('\n'));
+      }
+
+      // Save project to JSON file
+      function onSaveJson() {
+        try {
+          const data = { devices: devices, connections: connections };
+          const json = JSON.stringify(data);
+          const blob = new Blob([json], { type: 'application/json' });
+          const ts = new Date().toISOString().replace(/[:\.]/g, '-');
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'rf_project_' + ts + '.json';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          setStatus('Проект сохранён.', 'ok');
+        } catch (err) {
+          setStatus('Ошибка при сохранении: ' + err.message, 'error');
+        }
+      }
+
+      // Import project from JSON file
+      function onLoadJson(event) {
+        const file = event && event.target ? event.target.files[0] : null;
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const obj = JSON.parse(e.target.result);
+            if (obj && Array.isArray(obj.devices) && Array.isArray(obj.connections)) {
+              devices = obj.devices;
+              connections = obj.connections;
+              // Update counters to avoid ID collisions
+              deviceCounter = devices.reduce((max, d) => {
+                const parts = String(d.id || '').split('_');
+                const num = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+                return isNaN(num) ? max : Math.max(max, num);
+              }, 0) + 1;
+              connectionCounter = connections.reduce((max, c) => {
+                const parts = String(c.id || '').split('_');
+                const num = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+                return isNaN(num) ? max : Math.max(max, num);
+              }, 0) + 1;
+              renderDevices();
+              updateCounters();
+              setStatus('Проект загружен.', 'ok');
+            } else {
+              setStatus('Файл не содержит данные схемы.', 'error');
+            }
+          } catch (err) {
+            setStatus('Ошибка загрузки: ' + err.message, 'error');
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function updateCounters() {
+        let total = 0;
+        let mic = 0;
+        let iem = 0;
+        devices.forEach(d => {
+          if (d.type === 'rack') {
+            total += d.channels || 0;
+            if (d.rackType === 'mic') {
+              mic += d.channels || 0;
+            } else {
+              iem += d.channels || 0;
+            }
+          }
+        });
+        // Update header counters
+        if (countTotalSpan) countTotalSpan.textContent = 'Всего: ' + total;
+        if (countMicSpan) countMicSpan.textContent = 'Mic: ' + mic;
+        if (countIemSpan) countIemSpan.textContent = 'IEM: ' + iem;
+      }
+
+      // Utility: check rack type by id
+      function isMicRack(id) {
+        const d = devices.find(x => x.id === id);
+        return d && d.type === 'rack' && (d.rackType || 'mic') === 'mic';
+      }
+      function isIemRack(id) {
+        const d = devices.find(x => x.id === id);
+        return d && d.type === 'rack' && (d.rackType || 'mic') === 'iem';
+      }
+
+      // Rename a device
+      function renameDevice(id) {
+        const d = devices.find(x => x.id === id);
+        if (!d) return;
+        const newName = prompt('Новое имя для устройства:', d.label || '');
+        if (newName !== null) {
+          const trimmed = newName.trim();
+          if (trimmed.length > 0) {
+            d.label = trimmed;
+            renderDevices();
+            updateCounters();
+          }
+        }
+      }
+      // Delete a device and its connections
+      function deleteDevice(id) {
+        if (!confirm('Удалить это устройство и все его соединения?')) return;
+        // Remove connections
+        connections = connections.filter(c => c.fromDeviceId !== id && c.toDeviceId !== id);
+        // Remove device
+        devices = devices.filter(d => d.id !== id);
+        renderDevices();
+        updateCounters();
+        setStatus('Устройство удалено.', 'ok');
+      }
+      // Change rack transmit power
+      function changeRackPower(id) {
+        const d = devices.find(x => x.id === id);
+        if (!d || d.type !== 'rack') return;
+        const curr = d.power || 10;
+        const newVal = prompt('Введите мощность передатчика (мВт):', curr);
+        if (newVal !== null) {
+          const p = parseInt(newVal, 10);
+          if (!isNaN(p) && p > 0) {
+            d.power = p;
+            renderDevices();
+            updateCounters();
+          }
+        }
+      }
+
+      // Event listeners
+      addRackForm.addEventListener('submit', onAddRack);
+      addSplitterForm.addEventListener('submit', onAddSplitter);
+      addAntennaForm.addEventListener('submit', onAddAntenna);
+      addSummatorForm.addEventListener('submit', onAddSummator);
+      exportPdfBtn.addEventListener('click', onExportPdf);
+      resetBtn.addEventListener('click', onReset);
+      gridToggle.addEventListener('change', onToggleGrid);
+      hintBtn.addEventListener('click', onHint);
+      diagramContainer.addEventListener('mousedown', onMouseDown);
+      window.addEventListener('resize', renderConnections);
+
+      // Panning events: update connections when the wrapper is scrolled
+      if (diagramWrapper) {
+        diagramWrapper.addEventListener('scroll', () => {
+          // Re-render connections when the scroll position changes
+          renderConnections();
+        });
+      }
+      // Attach panning handlers using Pointer Events. Pointer events provide more reliable
+      // tracking of drag interactions across nested elements compared to mouse events.
+      if (diagramWrapper) {
+        // Start panning on pointerdown if clicked on empty space. We keep the existing
+        // onPanStart handler but call it from a pointerdown listener.
+        diagramWrapper.addEventListener('pointerdown', onPanStart);
+        // Also listen for mousedown for environments that do not fire pointer events (e.g. older browsers
+        // or automation tools). This will call the same handler. When pointer events are supported,
+        // both events may fire but onPanStart early returns if a pan is already in progress.
+        diagramWrapper.addEventListener('mousedown', onPanStart);
+      }
+
+      // Project save/load
+      if (saveJsonBtn) {
+        saveJsonBtn.addEventListener('click', onSaveJson);
+      }
+      if (loadJsonBtn && loadJsonInput) {
+        // clicking the import button opens the hidden file selector
+        loadJsonBtn.addEventListener('click', () => {
+          loadJsonInput.click();
+        });
+        // when a file is selected, process it
+        loadJsonInput.addEventListener('change', onLoadJson);
+      }
+
+      // Initialize empty workspace; no default devices. Provide an initial hint for the user.
+      setStatus('Поле пустое. Добавь устройства через панель слева.', 'info');
+    })();
+  </script>
+</body>
+</html>
